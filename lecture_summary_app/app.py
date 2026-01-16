@@ -4,7 +4,8 @@ import pandas as pd
 from dotenv import load_dotenv
 import logging
 
-from utils import file_loader, web_loader, summarizer, qa_agent, recommender
+# 遅延インポート（高速化：必要な時だけインポート）
+# from utils import file_loader, web_loader, summarizer, qa_agent, recommender
 
 # Load environment variables
 load_dotenv()
@@ -468,6 +469,9 @@ def main():
                 ai_name_btn = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
                 st.error(f"❌ {ai_name_btn}アカウントを登録してください！\n\n上の「アカウント接続情報」欄に、{ai_name_btn}アカウントの接続情報を入力してください。")
             else:
+                # 遅延インポート（使用時のみ）
+                from utils import file_loader, web_loader, summarizer, qa_agent, recommender
+                
                 # プログレスバー追加
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -824,6 +828,10 @@ def main():
             st.divider()
             st.subheader("📚 処理されたファイル（自動順序付け）")
             st.caption("💡 ファイル名や内容から「第1回」「第2回」などを判断して自動的に順序付けしています")
+            
+            # 遅延インポート
+            from utils import file_loader
+            
             for idx, item in enumerate(st.session_state.text_data_list, 1):
                 # 講義番号を再抽出して表示
                 lecture_num = file_loader.extract_lecture_number(item['source'], item['content'][:500])
