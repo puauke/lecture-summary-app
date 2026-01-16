@@ -106,10 +106,23 @@ def main():
         st.session_state.search_keyword = ""  # 検索キーワード
         st.session_state.manual_search_results = []  # 手動検索結果
         st.session_state.language = "ja"  # デフォルト言語：日本語
+        st.session_state.ai_provider = "gemini"  # デフォルトAIプロバイダー
+    
+    # 個別の初期化（languageとai_providerは常に更新される可能性がある）
+    if "language" not in st.session_state:
+        st.session_state.language = "ja"
+    if "ai_provider" not in st.session_state:
+        st.session_state.ai_provider = "gemini"
     
     # Save category to session
     if "current_category" not in st.session_state:
         st.session_state.current_category = None
+    
+    # キャンセルフラグの初期化
+    if "cancel_processing" not in st.session_state:
+        st.session_state.cancel_processing = False
+    if "is_processing" not in st.session_state:
+        st.session_state.is_processing = False
 
     # Sidebar: Settings & Inputs
     with st.sidebar:
@@ -124,74 +137,170 @@ def main():
         )
         st.session_state.language = language
         
-        # 言語別テキスト
-        texts = {
+        # モード選択
+        ai_provider = st.selectbox(
+            "⚙️ 機能モードを選択してください",
+            ["extract_only", "gemini", "openai"],
+            format_func=lambda x: "📝 テキスト抽出のみ（AIアカウント不要）" if x == "extract_only" else ("🔷 Google Gemini アカウントで自動要約" if x == "gemini" else "🟢 ChatGPT アカウントで自動要約"),
+            key="ai_provider_selector",
+            help="• テキスト抽出: PDFを文字に変換するだけ\n• AIアカウント: 個人的なGemini/ChatGPTアカウントを登録して自動要約を生成"
+        )
+        if "ai_provider" not in st.session_state:
+            st.session_state.ai_provider = ai_provider
+        st.session_state.ai_provider = ai_provider
+        
+        # 言語別テキスト定数
+        TEXTS = {
             "ja": {
-                "api_info_local": "✅ APIキー設定済み（環境変数から読み込み）",
-                "api_info_shared": "ℹ️ 共有環境で動作中：各自のGoogle Gemini APIキーを入力してください（無料で取得可能）",
-                "api_key_label": "🔑 Google Gemini API Key",
-                "api_key_help": "Google AI Studio (https://ai.google.dev/) で無料取得できます",
-                "api_key_placeholder": "AIza... で始まるキーを入力",
-                "api_key_link": "[📖 APIキーの取得方法](https://ai.google.dev/) - Google AI Studioで無料登録",
-                "api_short_warning": "⚠️ APIキーが短すぎる可能性があります",
-                "api_success": "✅ APIキー設定完了",
-                "api_warning": "⚠️ APIキーを入力してください。入力されていない場合、アプリは動作しません。",
-                "local_mode": "ℹ️ ローカル環境で動作中（.envから自動読み込み）"
+                "api_info_local": "✅ AIアカウント登録済み（環境変数から読み込み）",
+                "api_info_shared_gemini": "ℹ️ **Google Gemini AIアカウントと接続**: あなたの個人的なAPIキーを入力してください。",
+                "api_info_shared_openai": "ℹ️ **OpenAI (ChatGPT) アカウントと接続**: あなたの個人的なAPIキーを入力してください。",
+                "api_key_label_gemini": "🔑 Google Gemini APIキー（あなた個人のアカウント）",
+                "api_key_label_openai": "🔑 OpenAI APIキー（あなた個人のアカウント）",
+                "api_key_help_gemini": "無料で取得可能: Google AI Studio (https://ai.google.dev/)",
+                "api_key_help_openai": "OpenAI Platform (https://platform.openai.com/api-keys) で取得",
+                "api_key_placeholder_gemini": "AIza... で始まるキーを入力",
+                "api_key_placeholder_openai": "sk-... で始まるキーを入力",
+                "api_key_link_gemini": "🆓 [登録方法] Google AI Studioで無料登録 → APIキーをコピー → 上の欄に貼り付け",
+                "api_key_link_openai": "🆓 [登録方法] OpenAI Platformで登録 → API Keys → キーをコピー → 上の欄に貼り付け",
+                "api_short_warning": "⚠️ APIキーが短すぎる可能性があります。正しいキーを入力してください。",
+                "api_success": "✅ AIアカウント登録完了",
+                "api_warning": "⚠️ AIアカウントを登録してください。APIキーを入力しないとAI機能は使えません。",
+                "local_mode": "ℹ️ ローカル環境: .envファイルから自動登録"
             },
             "en": {
-                "api_info_local": "✅ API Key configured (loaded from environment variables)",
-                "api_info_shared": "ℹ️ Shared environment: Please enter your own Google Gemini API Key (free to obtain)",
-                "api_key_label": "🔑 Google Gemini API Key",
-                "api_key_help": "Get it for free at Google AI Studio (https://ai.google.dev/)",
-                "api_key_placeholder": "Enter key starting with AIza...",
-                "api_key_link": "[📖 How to get API Key](https://ai.google.dev/) - Free registration at Google AI Studio",
-                "api_short_warning": "⚠️ API key may be too short",
-                "api_success": "✅ API Key configured successfully",
-                "api_warning": "⚠️ Please enter your API Key. The app will not work without it.",
-                "local_mode": "ℹ️ Running in local environment (auto-loaded from .env)"
+                "api_info_local": "✅ AI Account Registered (loaded from environment variables)",
+                "api_info_shared_gemini": "ℹ️ **Connect Your Google Gemini Account**: Enter your personal API Key.",
+                "api_info_shared_openai": "ℹ️ **Connect Your OpenAI (ChatGPT) Account**: Enter your personal API Key.",
+                "api_key_label_gemini": "🔑 Google Gemini API Key (Your Personal Account)",
+                "api_key_label_openai": "🔑 OpenAI API Key (Your Personal Account)",
+                "api_key_help_gemini": "Free: Get it at Google AI Studio (https://ai.google.dev/)",
+                "api_key_help_openai": "Get it at OpenAI Platform (https://platform.openai.com/api-keys)",
+                "api_key_placeholder_gemini": "Enter key starting with AIza...",
+                "api_key_placeholder_openai": "Enter key starting with sk-...",
+                "api_key_link_gemini": "🆓 [How to Register] Sign up at Google AI Studio → Copy API Key → Paste above",
+                "api_key_link_openai": "🆓 [How to Register] Sign up at OpenAI Platform → API Keys → Copy → Paste above",
+                "api_short_warning": "⚠️ API key may be too short. Please enter correct key.",
+                "api_success": "✅ AI Account Registered Successfully",
+                "api_warning": "⚠️ Please register your AI account. AI features won't work without API Key.",
+                "local_mode": "ℹ️ Local environment: Auto-registered from .env file"
             }
         }
         
-        t = texts[language]
+        t = TEXTS[language]
         
         st.divider()
         
-        # API Key (ローカル環境では.envから自動読み込み、共有環境では手動入力)
-        env_api_key = os.getenv("GOOGLE_API_KEY", "")
-        
-        if env_api_key:
-            # ローカル環境（.envからAPIキーが読み込まれている場合）
-            api_key = env_api_key
-            masked_key = mask_api_key(api_key)
-            st.success(f"{t['api_info_local']}: {masked_key}")
-            st.caption(t["local_mode"])
+        # AIアカウント登録 (テキスト抽出モードの場合はスキップ)
+        if ai_provider == "extract_only":
+            st.info("📝 **テキスト抽出モード**: PDF/TXTファイルから文字を抽出し、コピー可能な形式で表示します。\n\nAIアカウントの登録は不要です。")
+            api_key = "dummy_key_not_used"  # テキスト抽出モード用のダミー
         else:
-            # 共有環境（Streamlit Cloudなど、各ユーザーが入力）
-            st.info(t["api_info_shared"])
-            api_key = st.text_input(
-                t["api_key_label"], 
-                value="", 
-                type="password", 
-                help=t["api_key_help"],
-                placeholder=t["api_key_placeholder"]
-            )
+            # AIアカウント登録画面
+            ai_name = "Google Gemini" if ai_provider == "gemini" else "OpenAI ChatGPT"
+            st.markdown(f"### 🔗 {ai_name} アカウントを登録")
             
-            # API キー取得リンク
-            st.caption(t["api_key_link"])
+            st.info("📦 **配達先住所のように、{}アカウント情報を教えてください**\n\nこの情報を登録すると、このアプリが{}アカウントに接続し、自動的に要約を作成できます。\n\n⚠️ 登録した情報はブラウザ内のみで使用され、他の人と共有されることはありません。".format(ai_name, ai_name))
             
-            # API キーのマスク表示（セキュリティ強化）
-            if api_key:
-                # API キーの長さを検証（通常150文字以上）
-                if len(api_key) < 20:
-                    st.warning(t["api_short_warning"])
+            # 登録手順を表示
+            with st.expander("📝 アカウント登録手順（初回のみ必要）", expanded=False):
+                if ai_provider == "gemini":
+                    st.markdown("""
+                    **Google Gemini アカウントの登録手順**
+                    
+                    1️⃣ [Google AI Studio](https://ai.google.dev/) を開く
+                    2️⃣ Googleアカウントでログイン
+                    3️⃣ **"Get API Key"** ボタンをクリック
+                    4️⃣ **"Create API Key"** でキーを生成
+                    5️⃣ 表示されたキー（`AIza...`で始まる）をコピー
+                    6️⃣ 下の「アカウント接続情報」欄に貼り付け
+                    
+                    ✅ **無料で使えます！**
+                    """)
                 else:
-                    # セッション内でのみ保存（他のユーザーと共有されない）
-                    os.environ["GOOGLE_API_KEY"] = api_key
-                    masked_key = mask_api_key(api_key)
-                    st.success(f"{t['api_success']}: {masked_key}")
+                    st.markdown("""
+                    **OpenAI ChatGPT アカウントの登録手順**
+                    
+                    1️⃣ [OpenAI Platform](https://platform.openai.com/api-keys) を開く
+                    2️⃣ OpenAIアカウントでログイン
+                    3️⃣ **"Create new secret key"** をクリック
+                    4️⃣ キーに名前を付けて生成
+                    5️⃣ 表示されたキー（`sk-...`で始まる）をコピー
+                    6️⃣ 下の「アカウント接続情報」欄に貼り付け
+                    
+                    ⚠️ 有料サービスです
+                    """)
+            
+            st.divider()
+            
+            # ローカル環境のチェック
+            if ai_provider == "gemini":
+                env_api_key = os.getenv("GOOGLE_API_KEY", "")
             else:
-                st.warning(t["api_warning"])
-                api_key = ""  # 空文字列を設定
+                env_api_key = os.getenv("OPENAI_API_KEY", "")
+            
+            if env_api_key:
+                # ローカル環境（.envから自動読み込み）
+                api_key = env_api_key
+                masked_key = mask_api_key(api_key)
+                st.success(f"✅ **{ai_name}アカウントが登録済みです**")
+                st.caption(f"🔒 登録情報: {masked_key} (ローカル.envファイルから自動読み込み)")
+                
+                # 処理時間に関する情報
+                with st.expander("⏱️ 処理時間について", expanded=False):
+                    st.markdown("""
+                    **処理に時間がかかる理由:**
+                    
+                    1. **複数回のAI処理** 🤖
+                       - 要約生成（1回目）
+                       - まとめ生成（2回目）
+                       - 各処理で20～60秒程度
+                    
+                    2. **ネットワーク通信** 🌐
+                       - GoogleサーバーとのAPI通信
+                       - インターネット速度に依存
+                    
+                    3. **大量テキスト処理** 📄
+                       - 複数ファイルの統合
+                       - 1万文字あたり30～60秒
+                    
+                    **💡 高速化のヒント:**
+                    - ファイル数を減らす（1～3ファイル推奨）
+                    - 各ファイルのサイズを小さくする
+                    - 不要なページを削除してからアップロード
+                    """)
+            else:
+                # アカウント接続情報の入力
+                placeholder = "AIza... で始まるキー" if ai_provider == "gemini" else "sk-... で始まるキー"
+                
+                st.markdown(f"**📦 {ai_name}アカウント接続情報を入力**")
+                api_key = st.text_input(
+                    f"{ai_name}アカウント接続情報", 
+                    value="", 
+                    type="password", 
+                    help=f"上の手順で取得したキーを貼り付けてください。これで{ai_name}アカウントと接続されます。",
+                    placeholder=placeholder,
+                    key="account_connection_info"
+                )
+                
+                # 登録情報の検証と保存
+                if api_key:
+                    # 長さを検証
+                    min_length = 20 if ai_provider == "openai" else 30
+                    if len(api_key) < min_length:
+                        st.error(f"❌ 接続情報が短すぎます。正しい{ai_name}のアカウント接続情報を入力してください。")
+                    else:
+                        # セッション内でのみ保存（ブラウザ内のみ、他者と共有されない）
+                        if ai_provider == "gemini":
+                            os.environ["GOOGLE_API_KEY"] = api_key
+                        else:
+                            os.environ["OPENAI_API_KEY"] = api_key
+                        masked_key = mask_api_key(api_key)
+                        st.success(f"✅ **{ai_name}アカウントの登録が完了しました！**")
+                        st.info(f"🔗 登録情報: {masked_key}\n\nこのアプリが{ai_name}アカウントに接続し、自動で要約を生成します。")
+                else:
+                    st.warning(f"⚠️ {ai_name}アカウントを登録してください。登録しないと自動要約機能が使えません。")
+                    api_key = ""  # 空文字列を設定
         
         st.divider()
 
@@ -255,21 +364,109 @@ def main():
 
         st.divider()
         
-        if st.button("🗑️ このカテゴリのデータを全消去", use_container_width=True):
-            import shutil
-            from pathlib import Path # Assuming file_loader.Path refers to pathlib.Path
-            data_dir = Path(f"data/{category}")
-            if data_dir.exists():
-                shutil.rmtree(data_dir)
-                st.success(f"カテゴリ '{category}' のデータを削除しました。")
-                st.rerun()
+        # カテゴリ削除機能（確認付き）
+        st.subheader("🗑️ カテゴリ削除")
+        
+        # 削除済みフォルダから30日以上経過したものを自動削除
+        def cleanup_old_deleted_folders():
+            """30日以上経過した削除済みフォルダを完全削除"""
+            import time
+            deleted_base = Path("data/deleted")
+            if deleted_base.exists():
+                current_time = time.time()
+                for folder in deleted_base.iterdir():
+                    if folder.is_dir():
+                        # フォルダの更新日時をチェック
+                        folder_time = folder.stat().st_mtime
+                        days_old = (current_time - folder_time) / (24 * 3600)
+                        if days_old > 30:
+                            try:
+                                shutil.rmtree(folder, onerror=lambda func, path, _: (os.chmod(path, stat.S_IWRITE), func(path)))
+                            except:
+                                pass
+        
+        cleanup_old_deleted_folders()
+        
+        # 削除確認のチェックボックス
+        delete_confirm = st.checkbox(
+            f"⚠️ カテゴリ '{category}' のすべてのデータを削除します（30日間は復元可能）",
+            key=f"delete_confirm_{category}"
+        )
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ カテゴリを削除", use_container_width=True, disabled=not delete_confirm, type="secondary"):
+                import shutil
+                import stat
+                from pathlib import Path
+                from datetime import datetime
+                
+                data_dir = Path(f"data/{category}")
+                if data_dir.exists():
+                    try:
+                        # 削除フォルダに移動（完全削除ではない）
+                        deleted_base = Path("data/deleted")
+                        deleted_base.mkdir(parents=True, exist_ok=True)
+                        
+                        # タイムスタンプ付きのフォルダ名
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        deleted_dir = deleted_base / f"{category}_{timestamp}"
+                        
+                        # フォルダを移動
+                        shutil.move(str(data_dir), str(deleted_dir))
+                        
+                        st.success(f"✅ カテゴリ '{category}' を削除しました。\\n\\n📦 30日以内であれば復元できます。")
+                        st.rerun()
+                    except PermissionError as e:
+                        st.error(f"❌ アクセス拒否エラー: ファイルが使用中の可能性があります。\\n\\n{str(e)}\\n\\n💡 解決方法:\\n1. このアプリを一度閉じて再起動してください\\n2. エクスプローラーでフォルダを開いている場合は閉じてください")
+                    except Exception as e:
+                        st.error(f"❌ 削除エラー: {str(e)}")
+                else:
+                    st.warning("削除するデータがありません。")
+        
+        with col2:
+            # 復元機能
+            deleted_base = Path("data/deleted")
+            if deleted_base.exists():
+                deleted_folders = [f for f in deleted_base.iterdir() if f.is_dir() and f.name.startswith(category + "_")]
+                if deleted_folders:
+                    # 最新の削除フォルダを取得
+                    latest_deleted = max(deleted_folders, key=lambda f: f.stat().st_mtime)
+                    
+                    if st.button("♻️ 削除を取り消して復元", use_container_width=True, type="primary"):
+                        try:
+                            restore_dir = Path(f"data/{category}")
+                            if restore_dir.exists():
+                                st.error(f"❌ カテゴリ '{category}' は既に存在します。先に削除してから復元してください。")
+                            else:
+                                shutil.move(str(latest_deleted), str(restore_dir))
+                                st.success(f"✅ カテゴリ '{category}' を復元しました！")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ 復元エラー: {str(e)}")
 
         st.divider()
         
         # Action Button
-        if st.button("🚀 読み込み & 解析開始", use_container_width=True, type="primary"):
-            if not api_key:
-                st.error("❌ APIキーを入力してください！Google AI Studioから取得できます: https://ai.google.dev/")
+        col_btn1, col_btn2 = st.columns([3, 1])
+        with col_btn1:
+            start_button = st.button("🚀 読み込み & 解析開始", use_container_width=True, type="primary", disabled=st.session_state.is_processing)
+        with col_btn2:
+            if st.session_state.is_processing:
+                if st.button("⏹️ キャンセル", use_container_width=True, type="secondary"):
+                    st.session_state.cancel_processing = True
+                    st.session_state.is_processing = False
+                    st.warning("⚠️ 処理をキャンセルしました")
+                    st.rerun()
+        
+        if start_button:
+            # キャンセルフラグをリセット
+            st.session_state.cancel_processing = False
+            st.session_state.is_processing = True
+            
+            if ai_provider != "extract_only" and not api_key:
+                ai_name_btn = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
+                st.error(f"❌ {ai_name_btn}アカウントを登録してください！\n\n上の「アカウント接続情報」欄に、{ai_name_btn}アカウントの接続情報を入力してください。")
             else:
                 # プログレスバー追加
                 progress_bar = st.progress(0)
@@ -280,11 +477,25 @@ def main():
                     status_text.text("📂 データを読み込み中...")
                     progress_bar.progress(10)
                     
+                    # キャンセルチェック
+                    if st.session_state.cancel_processing:
+                        st.session_state.is_processing = False
+                        status_text.text("⏹️ キャンセルされました")
+                        progress_bar.empty()
+                        st.stop()
+                    
                     text_data = [] # List of {content: str, source: str}
                     
                     # Save uploaded files first
                     if uploaded_files:
                         for idx, f in enumerate(uploaded_files):
+                            # キャンセルチェック
+                            if st.session_state.cancel_processing:
+                                st.session_state.is_processing = False
+                                status_text.text("⏹️ キャンセルされました")
+                                progress_bar.empty()
+                                st.stop()
+                            
                             try:
                                 file_loader.save_uploaded_file(f, category)
                                 progress_bar.progress(10 + (idx + 1) * 5)
@@ -299,22 +510,53 @@ def main():
                     status_text.text("📄 保存済みファイルを読み込み中...")
                     progress_bar.progress(25)
                     
+                    # キャンセルチェック
+                    if st.session_state.cancel_processing:
+                        st.session_state.is_processing = False
+                        status_text.text("⏹️ キャンセルされました")
+                        progress_bar.empty()
+                        st.stop()
+                    
                     import glob
                     saved_files = glob.glob(f"data/{category}/*")
                     
+                    # ファイルを講義番号順にソート
+                    file_data_with_order = []
                     for num, path in enumerate(saved_files):
-                         filename = os.path.basename(path)
-                         try:
-                             if path.endswith('.pdf'):
-                                 content = file_loader.load_pdf(path)
-                             else:
-                                 content = file_loader.load_text(path)
-                             
-                             if content and "Error" not in content[:50]:
-                                 text_data.append({"content": content, "source": filename})
-                         except Exception as e:
-                             st.error(f"❌ 読み込みエラー: {filename} - {str(e)}")
-                             continue
+                        filename = os.path.basename(path)
+                        try:
+                            if path.endswith('.pdf'):
+                                content = file_loader.load_pdf(path)
+                            else:
+                                content = file_loader.load_text(path)
+                            
+                            if content and "Error" not in content[:50]:
+                                # 講義番号を抽出
+                                lecture_num = file_loader.extract_lecture_number(filename, content[:500])
+                                file_data_with_order.append({
+                                    "content": content,
+                                    "source": filename,
+                                    "order": lecture_num,
+                                    "original_order": num
+                                })
+                        except Exception as e:
+                            st.error(f"❌ 読み込みエラー: {filename} - {str(e)}")
+                            continue
+                    
+                    # 講義番号でソート（番号が同じ場合は元の順序を維持）
+                    file_data_with_order.sort(key=lambda x: (x["order"], x["original_order"]))
+                    
+                    # text_dataに追加（ソート済み）
+                    for item in file_data_with_order:
+                        text_data.append({"content": item["content"], "source": item["source"]})
+                    
+                    # ソート結果をログ出力（デバッグ用）
+                    if file_data_with_order:
+                        status_text.text(f"✅ {len(file_data_with_order)}個のファイルを順序付けしました")
+                        print("📋 ファイル順序:")
+                        for idx, item in enumerate(file_data_with_order, 1):
+                            order_text = f"第{item['order']}回" if item['order'] != 999 else "順序不明"
+                            print(f"  {idx}. {item['source']} ({order_text})")
 
                     # Handle Web/URL inputs
                     if search_query:
@@ -354,21 +596,126 @@ def main():
                     else:
                         st.session_state.text_data_list = text_data
                         
-                        # 2. Summarize
-                        status_text.text("🤖 AI要約生成中... (最大3分)")
-                        progress_bar.progress(50)
-                        try:
-                            summary_result = summarizer.generate_summary(text_data, api_key, output_language=st.session_state.language)
-                            st.session_state.summary = summary_result.get("summary", "")
-                            st.session_state.integration = summary_result.get("integration", "")
-                            progress_bar.progress(70)
-                        except Exception as e:
-                            st.error(f"❌ 要約生成エラー: {str(e)} - APIキーを確認してください")
-                            raise
+                        # 2. Summarize (テキスト抽出モードはスキップ)
+                        if ai_provider == "extract_only":
+                            status_text.text("📝 テキスト抽出完了！「抽出テキスト」タブで確認できます。")
+                            st.session_state.summary = "⚠️ テキスト抽出モード: AI連携を選択すると、このアプリ内で自動的に要約を生成できます。"
+                            st.session_state.integration = "⚠️ テキスト抽出モード: 抽出されたテキストは「抽出テキスト」タブで確認できます。"
+                            progress_bar.progress(100)
+                        else:
+                            ai_name_processing = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
+                            status_text.text(f"🔗 {ai_name_processing}アカウントに接続中...")
+                            progress_bar.progress(45)
+                            import time
+                            import threading
+                            time.sleep(0.5)
+                            
+                            # 推定処理時間の計算（文字数に基づく）
+                            total_chars = sum(len(item['content']) for item in text_data)
+                            # 1万文字あたり約30秒と推定
+                            estimated_seconds = max(30, int(total_chars / 10000 * 30))
+                            
+                            start_time = time.time()
+                            result_container = {"result": None, "error": None, "done": False}
+                            
+                            # スレッドで使用する変数をローカルに保存（session_stateはスレッドからアクセス不可）
+                            output_language = st.session_state.language
+                            current_ai_provider = st.session_state.ai_provider
+                            
+                            # 別スレッドで要約生成
+                            def generate_in_background():
+                                try:
+                                    summary_result = summarizer.generate_summary(
+                                        text_data, 
+                                        api_key, 
+                                        output_language=output_language,
+                                        ai_provider=current_ai_provider
+                                    )
+                                    result_container["result"] = summary_result
+                                except Exception as e:
+                                    result_container["error"] = e
+                                finally:
+                                    result_container["done"] = True
+                            
+                            # バックグラウンドスレッド開始
+                            thread = threading.Thread(target=generate_in_background)
+                            thread.start()
+                            
+                            # 動的な時間推定（10秒ごとに更新、1分ごとに再計算）
+                            progress_bar.progress(50)
+                            last_recalc_time = start_time
+                            recalc_interval = 60  # 1分ごとに再計算
+                            
+                            while not result_container["done"]:
+                                # キャンセルチェック
+                                if st.session_state.cancel_processing:
+                                    st.session_state.is_processing = False
+                                    status_text.text("⏹️ 処理をキャンセルしました")
+                                    progress_bar.empty()
+                                    # バックグラウンドスレッドは継続するが、結果は無視
+                                    st.stop()
+                                
+                                elapsed = int(time.time() - start_time)
+                                
+                                # 1分ごとに推定時間を再計算（実測データから）
+                                if elapsed - (last_recalc_time - start_time) >= recalc_interval and elapsed > 30:
+                                    # 現在の進捗から残り時間を再推定
+                                    # 処理は「要約生成」と「まとめ生成」の2段階
+                                    # 前半60%が経過していると仮定して、残り40%の時間を推定
+                                    if elapsed > 0:
+                                        # 実測ベースの推定: 現在までの速度から全体時間を予測
+                                        estimated_total = int(elapsed * 1.8)  # 現在の位置から全体を推定
+                                        estimated_seconds = max(estimated_seconds, estimated_total)
+                                        last_recalc_time = time.time()
+                                
+                                remaining = max(0, estimated_seconds - elapsed)
+                                
+                                # 進捗率の計算（50%～90%の範囲で更新）
+                                if estimated_seconds > 0:
+                                    progress_percent = min(90, 50 + int((elapsed / estimated_seconds) * 40))
+                                else:
+                                    progress_percent = 70
+                                
+                                # 詳細な状態表示
+                                status_text.text(f"🤖 {ai_name_processing}で処理中... (経過: {elapsed}秒 / 推定残り: 約{remaining}秒) - 再計算: {int(time.time() - last_recalc_time)}秒前")
+                                progress_bar.progress(progress_percent)
+                                
+                                # 10秒待機（または完了を確認）
+                                for _ in range(100):  # 0.1秒×100回 = 10秒
+                                    if result_container["done"] or st.session_state.cancel_processing:
+                                        break
+                                    time.sleep(0.1)
+                            
+                            # スレッドの終了を待つ
+                            thread.join()
+                            
+                            # 結果の処理
+                            try:
+                                if result_container["error"]:
+                                    raise result_container["error"]
+                                
+                                st.session_state.summary = result_container["result"].get("summary", "")
+                                st.session_state.integration = result_container["result"].get("integration", "")
+                                elapsed = int(time.time() - start_time)
+                                status_text.text(f"✅ 完了！(処理時間: {elapsed}秒)")
+                                progress_bar.progress(70)
+                                st.session_state.is_processing = False
+                            except Exception as e:
+                                st.session_state.is_processing = False
+                                st.error(f"❌ 要約生成エラー: {str(e)} - APIキーを確認してください")
+                                raise
                         
                         # 3. Initialize QA Context
                         status_text.text("💬 Q&A機能初期化中...")
                         progress_bar.progress(80)
+                        
+                        # キャンセルチェック
+                        if st.session_state.cancel_processing:
+                            st.session_state.is_processing = False
+                            status_text.text("⏹️ キャンセルされました")
+                            progress_bar.empty()
+                            st.stop()
+                        
                         try:
                             from utils import qa_agent
                             st.session_state.full_context = qa_agent.initialize_vector_store(text_data, api_key)
@@ -378,9 +725,22 @@ def main():
                         # 4. Recommend (オプション: 見つからなければスキップ)
                         status_text.text("🔗 関連資料を検索中...")
                         progress_bar.progress(90)
+                        
+                        # キャンセルチェック
+                        if st.session_state.cancel_processing:
+                            st.session_state.is_processing = False
+                            status_text.text("⏹️ キャンセルされました")
+                            progress_bar.empty()
+                            st.stop()
+                        
                         try:
                             from utils import recommender
-                            st.session_state.recommendations = recommender.recommend_sources(st.session_state.summary, api_key, skip_if_not_found=True)
+                            st.session_state.recommendations = recommender.recommend_sources(
+                                st.session_state.summary, 
+                                api_key, 
+                                skip_if_not_found=True,
+                                ai_provider=st.session_state.ai_provider
+                            )
                         except Exception as e:
                             st.error(f"❌ 推薦エラー: {str(e)}")
                             st.session_state.recommendations = []
@@ -394,6 +754,7 @@ def main():
                         })
                         
                         st.session_state.data_loaded = True
+                        st.session_state.is_processing = False
                         progress_bar.progress(100)
                         status_text.text("✅ 解析完了！")
                         st.success("✅ 解析完了！各タブで結果を確認できます。")
@@ -403,10 +764,12 @@ def main():
                         gc.collect()
                         
                 except Exception as e:
+                    st.session_state.is_processing = False
                     st.error(f"❌ 処理中にエラーが発生しました: {str(e)}")
                     progress_bar.empty()
                     status_text.empty()
                 finally:
+                    st.session_state.is_processing = False
                     progress_bar.empty()
                     status_text.empty()
     
@@ -427,13 +790,75 @@ def main():
         st.info("👈 サイドバーから資料をアップロードまたは指定して、「読み込み」ボタンを押してください。")
         return
 
-    # Feature Tabs (Chapters)
-    tab_integration, tab_summary, tab_reco, tab_qa = st.tabs([
-        "📋 第1章: 全体まとめ", 
-        "📝 第2章: 統合要約", 
-        "🔗 第3章: 関連資料・参考文献", 
-        "🎓 第4章: AIチューター (Q&A)"
-    ])
+    # Feature Tabs (Chapters) - テキスト抽出モードの場合は簡略表示
+    if st.session_state.ai_provider == "extract_only":
+        tab_extracted, tab_summary, tab_integration = st.tabs([
+            "📝 抽出テキスト（コピペ用）", 
+            "📝 統合要約", 
+            "📝 全体まとめ"
+        ])
+        
+        # --- 抽出テキストタブ（テキスト抽出モード専用） ---
+        with tab_extracted:
+            render_chapter_header("抽出テキスト（コピペ用）", "📝")
+            
+            st.info("💡 **使い方**: 下のテキストをすべてコピーして、自分のChatGPTやGeminiに貼り付けて「要約して」と指示してください。\n\nまたは、サイドバーで**AI連携モード**を選び、AIアカウントを登録すると、このアプリ内で直接要約を生成できます。")
+            
+            # 全テキストを結合
+            full_extracted_text = ""
+            for idx, item in enumerate(st.session_state.text_data_list, 1):
+                full_extracted_text += f"\n\n{'='*50}\n"
+                full_extracted_text += f"📄 ファイル {idx}: {item['source']}\n"
+                full_extracted_text += f"{'='*50}\n\n"
+                full_extracted_text += item['content']
+            
+            # テキストエリアに表示（コピペ可能）
+            st.text_area(
+                "抽出されたテキスト（全選択してコピーしてください）",
+                value=full_extracted_text,
+                height=600,
+                key="extracted_text_area"
+            )
+            
+            # ファイル情報（順序付き）
+            st.divider()
+            st.subheader("📚 処理されたファイル（自動順序付け）")
+            st.caption("💡 ファイル名や内容から「第1回」「第2回」などを判断して自動的に順序付けしています")
+            for idx, item in enumerate(st.session_state.text_data_list, 1):
+                # 講義番号を再抽出して表示
+                lecture_num = file_loader.extract_lecture_number(item['source'], item['content'][:500])
+                order_info = f"（第{lecture_num}回）" if lecture_num != 999 else "（順序不明）"
+                st.markdown(f"{idx}. **{item['source']}** {order_info} - {len(item['content'])}文字")
+            
+            # ダウンロードボタン
+            st.divider()
+            st.download_button(
+                label="📥 テキストファイルとしてダウンロード",
+                data=full_extracted_text,
+                file_name=f"extracted_text_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="download_extracted_text"
+            )
+        
+        # 統合要約タブ（テキスト抽出モードでは説明のみ）
+        with tab_summary:
+            render_chapter_header("統合要約", "📝")
+            st.warning("⚠️ **テキスト抽出モード**: 要約は生成されません。\n\n🔗 **AI連携で自動要約**: サイドバーで**AI連携モード**を選び、あなたのAIアカウント（Google GeminiまたはOpenAI）を登録すると、このアプリ内で直接要約を生成できます。")
+        
+        # 全体まとめタブ（テキスト抽出モードでは説明のみ）
+        with tab_integration:
+            render_chapter_header("全体まとめ", "📝")
+            st.warning("⚠️ **テキスト抽出モード**: まとめは生成されません。\n\n🔗 **AI連携で自動まとめ**: サイドバーで**AI連携モード**を選び、あなたのAIアカウント（Google GeminiまたはOpenAI）を登録すると、このアプリ内で直接まとめを生成できます。")
+    
+    else:
+        # 通常モード（AI使用）
+        tab_integration, tab_summary, tab_reco, tab_qa = st.tabs([
+            "📋 第1章: 全体まとめ", 
+            "📝 第2章: 統合要約", 
+            "🔗 第3章: 関連資料・参考文献", 
+            "🎓 第4章: AIチューター (Q&A)"
+        ])
 
     # --- Chapter 1: Integration Summary (まとめ) ---
     with tab_integration:
@@ -442,15 +867,21 @@ def main():
         # キーワード検索機能
         search_col1, search_col2 = st.columns([3, 1])
         with search_col1:
-            search_keyword = st.text_input("🔍 キーワード検索", value=st.session_state.search_keyword, placeholder="検索したいキーワードを入力", key="search_integration")
+            search_keyword = st.text_input(
+                "🔍 キーワード検索", 
+                value=st.session_state.search_keyword, 
+                placeholder="検索したいキーワードを入力", 
+                key="search_integration"
+            )
         with search_col2:
             if st.button("検索", key="search_btn_integration"):
                 st.session_state.search_keyword = search_keyword
         
         # ハイライト表示
-        displayed_text = st.session_state.integration
-        if search_keyword:
-            displayed_text = highlight_keywords(displayed_text, [search_keyword])
+        displayed_text = highlight_keywords(
+            st.session_state.integration, 
+            [search_keyword] if search_keyword else []
+        )
         
         st.markdown(displayed_text)
         
@@ -463,7 +894,6 @@ def main():
             file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
             mime="text/markdown",
             use_container_width=True,
-            key="export_summary",
             key="export_integration"
         )
 
@@ -474,15 +904,20 @@ def main():
         # キーワード検索機能
         search_col1, search_col2 = st.columns([3, 1])
         with search_col1:
-            search_keyword_summary = st.text_input("🔍 キーワード検索", placeholder="検索したいキーワードを入力", key="search_summary")
+            search_keyword_summary = st.text_input(
+                "🔍 キーワード検索", 
+                placeholder="検索したいキーワードを入力", 
+                key="search_summary"
+            )
         with search_col2:
             if st.button("検索", key="search_btn_summary"):
                 st.session_state.search_keyword = search_keyword_summary
         
         # ハイライト表示
-        displayed_summary = st.session_state.summary
-        if st.session_state.search_keyword:
-            displayed_summary = highlight_keywords(displayed_summary, [st.session_state.search_keyword])
+        displayed_summary = highlight_keywords(
+            st.session_state.summary, 
+            [st.session_state.search_keyword] if st.session_state.search_keyword else []
+        )
         
         st.markdown(displayed_summary)
         
@@ -589,7 +1024,12 @@ def main():
                                 """
                                 
                                 from utils import qa_agent
-                                explanation = qa_agent.get_answer(explanation_prompt, os.getenv("GOOGLE_API_KEY"))
+                                explanation = qa_agent.get_answer(
+                                    explanation_prompt, 
+                                    st.session_state.full_context,
+                                    api_key,
+                                    st.session_state.ai_provider
+                                )
                                 
                                 st.success(f"📚 「{term_query}」の説明:")
                                 st.markdown(explanation)
@@ -619,7 +1059,12 @@ def main():
                                 """
                                 
                                 from utils import qa_agent
-                                explanation = qa_agent.get_answer(formula_prompt, os.getenv("GOOGLE_API_KEY"))
+                                explanation = qa_agent.get_answer(
+                                    formula_prompt,
+                                    st.session_state.full_context,
+                                    api_key,
+                                    st.session_state.ai_provider
+                                )
                                 
                                 st.success(f"🔢 「{formula_query}」の説明:")
                                 st.markdown(explanation)
@@ -649,7 +1094,12 @@ def main():
                             """
                             
                             from utils import qa_agent
-                            explanation = qa_agent.get_answer(explanation_prompt, os.getenv("GOOGLE_API_KEY"))
+                            explanation = qa_agent.get_answer(
+                                explanation_prompt,
+                                st.session_state.full_context,
+                                api_key,
+                                st.session_state.ai_provider
+                            )
                             
                             st.success(f"📚 「{term_query}」の説明:")
                             st.markdown(explanation)
@@ -678,7 +1128,12 @@ def main():
                             """
                             
                             from utils import qa_agent
-                            explanation = qa_agent.get_answer(formula_prompt, os.getenv("GOOGLE_API_KEY"))
+                            explanation = qa_agent.get_answer(
+                                formula_prompt,
+                                st.session_state.full_context,
+                                api_key,
+                                st.session_state.ai_provider
+                            )
                             
                             st.success(f"🔢 「{formula_query}」の説明:")
                             st.markdown(explanation)
@@ -709,7 +1164,8 @@ def main():
                             response, sources = qa_agent.get_answer(
                                 st.session_state.messages[-1]["content"], 
                                 st.session_state.full_context,
-                                api_key
+                                api_key,
+                                st.session_state.ai_provider
                             )
                             # Append sources to response
                             full_response = response

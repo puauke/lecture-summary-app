@@ -12,16 +12,22 @@ MAX_CONTENT_SIZE = 2 * 1024 * 1024
 
 def validate_url(url: str) -> bool:
     """
-    URLの検証（SSRF対策）
+    URLの検証（SSRF攻撃対策・危険サイトフィルタリング）
+    
+    Args:
+        url: 検証するURL
+    
+    Returns:
+        True: 安全なURL, False: 危険または無効なURL
     """
     try:
         parsed = urlparse(url)
         
-        # プロトコルが http または https のみを許可
+        # 許可されたプロトコル: http, https のみ
         if parsed.scheme not in ['http', 'https']:
             return False
         
-        # localhost や内部ネットワークへのアクセスを防ぐ
+        # ホスト名の必須チェック
         hostname = parsed.hostname
         if not hostname:
             return False

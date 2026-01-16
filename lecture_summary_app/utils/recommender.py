@@ -1,12 +1,17 @@
-def recommend_sources(summary_text, api_key, skip_if_not_found=True):
+def recommend_sources(summary_text, api_key, skip_if_not_found=True, ai_provider="gemini"):
     """
     Analyzes the summary to find key topics and searches for high-quality external resources.
     skip_if_not_found: Trueの場合、見つからなければ空リストを返す（無理に探さない）
+    ai_provider: 'gemini' or 'openai'
     """
-    from langchain_google_genai import ChatGoogleGenerativeAI
     from .web_loader import search_web
     
-    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
+    if ai_provider == "openai":
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=api_key, temperature=0.7)
+    else:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
     
     # 1. Extract Keywords
     prompt = f"""

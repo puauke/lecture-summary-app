@@ -17,15 +17,33 @@ def initialize_vector_store(text_data_list, api_key):
     
     return full_context
 
-def get_answer(query, context_text, api_key):
+def get_answer(query, context_text, api_key, ai_provider="gemini"):
     """
-    Answers question using the full context directly (Long Context).
+    長いコンテキストを使用してユーザーの質問に回答（RAG不要）
+    
+    Args:
+        query: ユーザーの質問
+        context_text: 講義資料の全コンテキスト
+        api_key: Google Gemini APIキー or OpenAI APIキー
+        ai_provider: 'gemini' or 'openai'
+    
+    Returns:
+        (回答テキスト, ソースリスト) のタプル
     """
     if not context_text:
-        return "資料が読み込まれていません。", []
+        return "❌ 資料が読み込まれていません。サイドバーから資料をアップロードしてください。", []
 
-    # Initialize Chat Model
-    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key, temperature=0.1)
+    # Initialize Chat Model with optimized settings
+    if ai_provider == "openai":
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=api_key, temperature=0.1)
+    else:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash", 
+            google_api_key=api_key, 
+            temperature=0.1
+        )
     
     # Prompt Construction
     prompt = f"""
@@ -46,10 +64,12 @@ def get_answer(query, context_text, api_key):
     
     try:
         response = llm.invoke(prompt)
-        # In long context mode, citing specific sources programmatically is harder strictly 
-        # without RAG's metadata, but the model can reference them in text.
-        # We will return an empty list for sources for now, or parse the text if needed.
-        # The prompt asks to cite in text.
+        # Long Context モードでは、ソースの引用はテキスト内で行う
         return response.content, [] 
     except Exception as e:
-        return f"Error generation answer: {str(e)}", []
+        error_message = f"❌ 回答生成エラー: {type(e).__name__}"
+        if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
+            error_message += " - APIのレート制限に達しました。少し待ってから再試行してください。"
+        else:
+            error_message += f" - {str(e)[:100]}"
+        return error_message, []
