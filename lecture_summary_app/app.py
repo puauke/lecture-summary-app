@@ -10,6 +10,7 @@ import shutil
 import stat
 import threading
 import gc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 遅延インポート（高速化：必要な時だけインポート）
 # from utils import file_loader, web_loader, summarizer, qa_agent, recommender
@@ -65,6 +66,7 @@ def mask_api_key(api_key):
         return api_key
     return api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
 
+@st.cache_data
 def highlight_keywords(text, keywords):
     """キーワードをハイライト"""
     if not keywords:
@@ -74,6 +76,7 @@ def highlight_keywords(text, keywords):
             text = text.replace(keyword, f"**{keyword}**")
     return text
 
+@st.cache_data
 def export_to_markdown(summary, integration, sources):
     """要約を Markdown 形式でエクスポート"""
     content = f"""# AI資料まとめ
@@ -758,21 +761,18 @@ def main():
                     saved_files = glob.glob(f"data/{category}/*")
                     
                     # ファイル数に基づく推定時間を表示
-                    estimated_read_time = len(saved_files) * 2  # 1ファイルあたり約2秒と推定
-                    status_text.text(f"📄 {len(saved_files)}個のファイルを発見... (推定読込時間: 約{estimated_read_time}秒)")
+                    estimated_read_time = len(saved_files) * 1  # 並列処理で高速化（1秒/ファイル）
+                    status_text.text(f"📄 {len(saved_files)}個のファイルを発見... (推定読込時間: 約{estimated_read_time}秒 - 並列処理中)")
                     
-                    # ファイルを講義番号順にソート
+                    # ファイルを並列で読み込み（高速化）
                     file_data_with_order = []
                     successful_count = 0
                     failed_count = 0
                     
-                    for num, path in enumerate(saved_files):
+                    def load_single_file(path_and_num):
+                        """単一ファイルを読み込む関数（並列処理用）"""
+                        path, num = path_and_num
                         filename = os.path.basename(path)
-                        elapsed_so_far = int(time.time() - overall_start_time)
-                        remaining_files = len(saved_files) - num
-                        estimated_remaining = remaining_files * 2
-                        status_text.text(f"📖 読み込み中 ({num+1}/{len(saved_files)}): {filename} | 経過: {elapsed_so_far}秒 / 推定残り: 約{estimated_remaining}秒")
-                        
                         try:
                             if path.endswith('.pdf'):
                                 content = file_loader.load_pdf(path)
@@ -780,33 +780,54 @@ def main():
                                 content = file_loader.load_text(path)
                             
                             if not content:
-                                st.warning(f"⚠️ ファイルが空です: {filename}")
-                                upload_errors.append(f"{filename}: 内容が空")
-                                failed_count += 1
-                                continue
+                                return {"status": "empty", "filename": filename, "error": "内容が空"}
                             
                             if "Error" in content[:50]:
-                                st.error(f"❌ 読み込みエラー: {filename} - {content[:100]}")
-                                upload_errors.append(f"{filename}: {content[:100]}")
-                                failed_count += 1
-                                continue
+                                return {"status": "error", "filename": filename, "error": content[:100]}
                             
                             # 講義番号を抽出
                             lecture_num = file_loader.extract_lecture_number(filename, content[:500])
-                            file_data_with_order.append({
+                            return {
+                                "status": "success",
+                                "filename": filename,
                                 "content": content,
-                                "source": filename,
                                 "order": lecture_num,
                                 "original_order": num
-                            })
-                            successful_count += 1
-                            st.success(f"✅ 成功: {filename} (第{lecture_num}回)" if lecture_num != 999 else f"✅ 成功: {filename}")
-                            
+                            }
                         except Exception as e:
-                            st.error(f"❌ 読み込みエラー: {filename} - {str(e)}")
-                            upload_errors.append(f"{filename}: {str(e)}")
-                            failed_count += 1
-                            continue
+                            return {"status": "error", "filename": filename, "error": str(e)}
+                    
+                    # 並列処理でファイル読み込み（最大4スレッド）
+                    with ThreadPoolExecutor(max_workers=4) as executor:
+                        file_paths_with_nums = [(path, num) for num, path in enumerate(saved_files)]
+                        futures = {executor.submit(load_single_file, path_num): path_num for path_num in file_paths_with_nums}
+                        
+                        completed = 0
+                        for future in as_completed(futures):
+                            completed += 1
+                            result = future.result()
+                            
+                            elapsed_so_far = int(time.time() - overall_start_time)
+                            status_text.text(f"📖 読み込み中 ({completed}/{len(saved_files)}) | 経過: {elapsed_so_far}秒")
+                            
+                            if result["status"] == "success":
+                                file_data_with_order.append({
+                                    "content": result["content"],
+                                    "source": result["filename"],
+                                    "order": result["order"],
+                                    "original_order": result["original_order"]
+                                })
+                                successful_count += 1
+                                lecture_num = result["order"]
+                                st.success(f"✅ 成功: {result['filename']} (第{lecture_num}回)" if lecture_num != 999 else f"✅ 成功: {result['filename']}")
+                            elif result["status"] == "empty":
+                                st.warning(f"⚠️ ファイルが空です: {result['filename']}")
+                                upload_errors.append(f"{result['filename']}: {result['error']}")
+                                failed_count += 1
+                            else:
+                                st.error(f"❌ 読み込みエラー: {result['filename']} - {result['error']}")
+                                upload_errors.append(f"{result['filename']}: {result['error']}")
+                                failed_count += 1
                     
                     # 読み込み結果のサマリー
                     st.info(f"📊 読み込み完了: 成功 {successful_count}個 / 失敗 {failed_count}個 / 合計 {len(saved_files)}個")
@@ -888,21 +909,13 @@ def main():
                         else:
                             ai_name_processing = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
                             
-                            # 文字数から推定時間を計算して表示
+                            # 推定処理時間の計算（文字数に基づく） - 1回のみ計算
                             total_chars = sum(len(item['content']) for item in text_data)
-                            estimated_ai_time = max(30, int(total_chars / 10000 * 30))
+                            estimated_seconds = max(30, int(total_chars / 10000 * 30))
                             elapsed_so_far = int(time.time() - overall_start_time)
                             
-                            status_text.text(f"🔗 {ai_name_processing}アカウントに接続中... (推定AI処理時間: 約{estimated_ai_time}秒 | 経過: {elapsed_so_far}秒)")
+                            status_text.text(f"🔗 {ai_name_processing}アカウントに接続中... (推定AI処理時間: 約{estimated_seconds}秒 | 経過: {elapsed_so_far}秒)")
                             progress_bar.progress(45)
-                            import time
-                            import threading
-                            time.sleep(0.5)
-                            
-                            # 推定処理時間の計算（文字数に基づく）
-                            total_chars = sum(len(item['content']) for item in text_data)
-                            # 1万文字あたり約30秒と推定
-                            estimated_seconds = max(30, int(total_chars / 10000 * 30))
                             
                             start_time = time.time()
                             result_container = {"result": None, "error": None, "done": False}
