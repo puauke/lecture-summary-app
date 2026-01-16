@@ -1190,6 +1190,18 @@ def main():
         render_chapter_header("AIチューター & 用語検索", "🙋‍♂️")
         st.info("読み込んだ全ての資料に基づいて、AIがあなたの質問に答えます。")
         
+        # APIキーの確実な確認と設定（Q&A機能用）
+        if ai_provider != "extract_only":
+            if not api_key or len(api_key.strip()) < 20:
+                st.error("❌ APIキーが設定されていません。サイドバーでログインしてください。")
+                st.stop()
+            else:
+                # 環境変数に確実に設定
+                if st.session_state.ai_provider == "gemini":
+                    os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                else:
+                    os.environ["OPENAI_API_KEY"] = api_key.strip()
+        
         # 用語・数式検索機能を追加
         st.subheader("🔍 検索機能")
         search_mode = st.radio(
@@ -1212,8 +1224,18 @@ def main():
                     if term_query:
                         with st.spinner(f"「{term_query}」を検索中..."):
                             try:
-                                # 資料内から用語を検索して説明
-                                explanation_prompt = f"""
+                                # APIキーの再確認
+                                if not api_key or len(api_key.strip()) < 20:
+                                    st.error("❌ APIキーが無効です。サイドバーで再ログインしてください。")
+                                else:
+                                    # 環境変数に確実に設定
+                                    if st.session_state.ai_provider == "gemini":
+                                        os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                                    else:
+                                        os.environ["OPENAI_API_KEY"] = api_key.strip()
+                                    
+                                    # 資料内から用語を検索して説明
+                                    explanation_prompt = f"""
                                 以下の資料内から「{term_query}」という用語について説明してください。
                                 
                                 【説明のルール】
@@ -1224,19 +1246,19 @@ def main():
                                 資料の内容:
                                 {st.session_state.full_context[:3000] if st.session_state.full_context else "資料が読み込まれていません"}
                                 """
-                                
-                                from utils import qa_agent
-                                explanation = qa_agent.get_answer(
-                                    explanation_prompt, 
-                                    st.session_state.full_context,
-                                    api_key,
-                                    st.session_state.ai_provider
-                                )
-                                
-                                st.success(f"📚 「{term_query}」の説明:")
-                                st.markdown(explanation)
+                                    
+                                    from utils import qa_agent
+                                    explanation = qa_agent.get_answer(
+                                        explanation_prompt, 
+                                        st.session_state.full_context,
+                                        api_key.strip(),
+                                        st.session_state.ai_provider
+                                    )
+                                    
+                                    st.success(f"📚 「{term_query}」の説明:")
+                                    st.markdown(explanation)
                             except Exception as e:
-                                st.error(f"❌ 用語検索エラー: {str(e)}")
+                                st.error(f"❌ 用語検索エラー: {str(e)}\n\n💡 APIキーが正しく設定されているか確認してください。")
                     else:
                         st.warning("用語を入力してください")
             
@@ -1247,8 +1269,18 @@ def main():
                     if formula_query:
                         with st.spinner(f"「{formula_query}」を検索中..."):
                             try:
-                                # 資料内から数式を検索して説明
-                                formula_prompt = f"""
+                                # APIキーの再確認
+                                if not api_key or len(api_key.strip()) < 20:
+                                    st.error("❌ APIキーが無効です。サイドバーで再ログインしてください。")
+                                else:
+                                    # 環境変数に確実に設定
+                                    if st.session_state.ai_provider == "gemini":
+                                        os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                                    else:
+                                        os.environ["OPENAI_API_KEY"] = api_key.strip()
+                                    
+                                    # 資料内から数式を検索して説明
+                                    formula_prompt = f"""
                                 以下の資料内から「{formula_query}」という数式または記号について説明してください。
                                 
                                 【重要なルール】
@@ -1259,19 +1291,19 @@ def main():
                                 資料の内容:
                                 {st.session_state.full_context[:3000] if st.session_state.full_context else "資料が読み込まれていません"}
                                 """
-                                
-                                from utils import qa_agent
-                                explanation = qa_agent.get_answer(
-                                    formula_prompt,
-                                    st.session_state.full_context,
-                                    api_key,
-                                    st.session_state.ai_provider
-                                )
-                                
-                                st.success(f"🔢 「{formula_query}」の説明:")
-                                st.markdown(explanation)
+                                    
+                                    from utils import qa_agent
+                                    explanation = qa_agent.get_answer(
+                                        formula_prompt,
+                                        st.session_state.full_context,
+                                        api_key.strip(),
+                                        st.session_state.ai_provider
+                                    )
+                                    
+                                    st.success(f"🔢 「{formula_query}」の説明:")
+                                    st.markdown(explanation)
                             except Exception as e:
-                                st.error(f"❌ 数式検索エラー: {str(e)}")
+                                st.error(f"❌ 数式検索エラー: {str(e)}\n\n💡 APIキーが正しく設定されているか確認してください。")
                     else:
                         st.warning("数式を入力してください")
         
@@ -1283,7 +1315,17 @@ def main():
                 if term_query:
                     with st.spinner(f"「{term_query}」を検索中..."):
                         try:
-                            explanation_prompt = f"""
+                            # APIキーの再確認
+                            if not api_key or len(api_key.strip()) < 20:
+                                st.error("❌ APIキーが無効です。サイドバーで再ログインしてください。")
+                            else:
+                                # 環境変数に確実に設定
+                                if st.session_state.ai_provider == "gemini":
+                                    os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                                else:
+                                    os.environ["OPENAI_API_KEY"] = api_key.strip()
+                                
+                                explanation_prompt = f"""
                             以下の資料内から「{term_query}」という用語について説明してください。
                             
                             【説明のルール】
@@ -1294,19 +1336,19 @@ def main():
                             資料の内容:
                             {st.session_state.full_context[:3000] if st.session_state.full_context else "資料が読み込まれていません"}
                             """
-                            
-                            from utils import qa_agent
-                            explanation = qa_agent.get_answer(
-                                explanation_prompt,
-                                st.session_state.full_context,
-                                api_key,
-                                st.session_state.ai_provider
-                            )
-                            
-                            st.success(f"📚 「{term_query}」の説明:")
-                            st.markdown(explanation)
+                                
+                                from utils import qa_agent
+                                explanation = qa_agent.get_answer(
+                                    explanation_prompt,
+                                    st.session_state.full_context,
+                                    api_key.strip(),
+                                    st.session_state.ai_provider
+                                )
+                                
+                                st.success(f"📚 「{term_query}」の説明:")
+                                st.markdown(explanation)
                         except Exception as e:
-                            st.error(f"❌ 用語検索エラー: {str(e)}")
+                            st.error(f"❌ 用語検索エラー: {str(e)}\n\n💡 APIキーが正しく設定されているか確認してください。")
                 else:
                     st.warning("用語を入力してください")
         
@@ -1317,7 +1359,17 @@ def main():
                 if formula_query:
                     with st.spinner(f"「{formula_query}」を検索中..."):
                         try:
-                            formula_prompt = f"""
+                            # APIキーの再確認
+                            if not api_key or len(api_key.strip()) < 20:
+                                st.error("❌ APIキーが無効です。サイドバーで再ログインしてください。")
+                            else:
+                                # 環境変数に確実に設定
+                                if st.session_state.ai_provider == "gemini":
+                                    os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                                else:
+                                    os.environ["OPENAI_API_KEY"] = api_key.strip()
+                                
+                                formula_prompt = f"""
                             以下の資料内から「{formula_query}」という数式または記号について説明してください。
                             
                             【重要なルール】
@@ -1328,19 +1380,19 @@ def main():
                             資料の内容:
                             {st.session_state.full_context[:3000] if st.session_state.full_context else "資料が読み込まれていません"}
                             """
-                            
-                            from utils import qa_agent
-                            explanation = qa_agent.get_answer(
-                                formula_prompt,
-                                st.session_state.full_context,
-                                api_key,
-                                st.session_state.ai_provider
-                            )
-                            
-                            st.success(f"🔢 「{formula_query}」の説明:")
-                            st.markdown(explanation)
+                                
+                                from utils import qa_agent
+                                explanation = qa_agent.get_answer(
+                                    formula_prompt,
+                                    st.session_state.full_context,
+                                    api_key.strip(),
+                                    st.session_state.ai_provider
+                                )
+                                
+                                st.success(f"🔢 「{formula_query}」の説明:")
+                                st.markdown(explanation)
                         except Exception as e:
-                            st.error(f"❌ 数式検索エラー: {str(e)}")
+                            st.error(f"❌ 数式検索エラー: {str(e)}\n\n💡 APIキーが正しく設定されているか確認してください。")
                 else:
                     st.warning("数式を入力してください")
         
@@ -1362,22 +1414,35 @@ def main():
             if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
                 with st.chat_message("assistant"):
                     with st.spinner("AIが回答を生成中..."):
-                        if api_key:
-                            response, sources = qa_agent.get_answer(
-                                st.session_state.messages[-1]["content"], 
-                                st.session_state.full_context,
-                                api_key,
-                                st.session_state.ai_provider
-                            )
-                            # Append sources to response
-                            full_response = response
-                            if sources:
-                                full_response += "\n\n**根拠:**\n" + "\n".join([f"- {s}" for s in sources])
+                        if api_key and len(api_key.strip()) >= 20:
+                            # 環境変数に確実に設定（チャット機能用）
+                            if st.session_state.ai_provider == "gemini":
+                                os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                            else:
+                                os.environ["OPENAI_API_KEY"] = api_key.strip()
                             
-                            st.markdown(full_response)
-                            st.session_state.messages.append({"role": "assistant", "content": full_response})
+                            try:
+                                response, sources = qa_agent.get_answer(
+                                    st.session_state.messages[-1]["content"], 
+                                    st.session_state.full_context,
+                                    api_key.strip(),
+                                    st.session_state.ai_provider
+                                )
+                                # Append sources to response
+                                full_response = response
+                                if sources:
+                                    full_response += "\n\n**根拠:**\n" + "\n".join([f"- {s}" for s in sources])
+                                
+                                st.markdown(full_response)
+                                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                            except Exception as e:
+                                error_msg = f"❌ 回答生成エラー: {str(e)}\n\n💡 APIキーが正しく設定されているか確認してください。"
+                                st.error(error_msg)
+                                st.session_state.messages.append({"role": "assistant", "content": error_msg})
                         else:
-                            st.error("API Key missing")
+                            error_msg = "❌ APIキーが設定されていないか無効です。\n\n💡 サイドバーで正しいAPIキーを使ってログインしてください。"
+                            st.error(error_msg)
+                            st.session_state.messages.append({"role": "assistant", "content": error_msg})
 
 if __name__ == "__main__":
     main()
