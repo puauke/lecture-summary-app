@@ -108,12 +108,21 @@ def main():
         st.session_state.manual_search_results = []  # 手動検索結果
         st.session_state.language = "ja"  # デフォルト言語：日本語
         st.session_state.ai_provider = "gemini"  # デフォルトAIプロバイダー
+        st.session_state.user_email = ""  # ユーザーメール
+        st.session_state.user_api_key = ""  # ユーザーAPIキー
+        st.session_state.is_logged_in = False  # ログイン状態
     
     # 個別の初期化（languageとai_providerは常に更新される可能性がある）
     if "language" not in st.session_state:
         st.session_state.language = "ja"
     if "ai_provider" not in st.session_state:
         st.session_state.ai_provider = "gemini"
+    if "user_email" not in st.session_state:
+        st.session_state.user_email = ""
+    if "user_api_key" not in st.session_state:
+        st.session_state.user_api_key = ""
+    if "is_logged_in" not in st.session_state:
+        st.session_state.is_logged_in = False
     
     # Save category to session
     if "current_category" not in st.session_state:
@@ -129,6 +138,87 @@ def main():
     with st.sidebar:
         st.title("🧠 AI資料まとめくん")
         
+        # 初回ログイン機能（共有版向け）
+        if not st.session_state.is_logged_in:
+            st.markdown("### 👤 初回利用者登録")
+            st.info("**このアプリを使うには、あなた自身のAIアカウント情報が必要です。**\n\n" +
+                   "他の人のAPIキーは使えません。無料で取得できます！")
+            
+            with st.form("login_form"):
+                user_email = st.text_input(
+                    "📧 メールアドレス（識別用）",
+                    placeholder="your.email@example.com",
+                    help="ログイン識別用です。実際のメール送信はありません。"
+                )
+                
+                st.markdown("---")
+                st.markdown("**あなた自身のAPIキーを取得してください:**")
+                
+                ai_provider_choice = st.selectbox(
+                    "使用するAI",
+                    ["gemini", "openai"],
+                    format_func=lambda x: "🔷 Google Gemini（無料・推奨）" if x == "gemini" else "🟢 OpenAI ChatGPT"
+                )
+                
+                with st.expander("📝 APIキーの取得方法", expanded=True):
+                    if ai_provider_choice == "gemini":
+                        st.markdown("""
+                        **Google Gemini APIキーの取得手順（無料）:**
+                        
+                        1. [Google AI Studio](https://ai.google.dev/) を開く
+                        2. Googleアカウントでログイン
+                        3. **"Get API Key"** → **"Create API Key"**
+                        4. キー（`AIza...`で始まる）をコピー
+                        5. 下の欄に貼り付け
+                        """)
+                    else:
+                        st.markdown("""
+                        **OpenAI APIキーの取得手順:**
+                        
+                        1. [OpenAI Platform](https://platform.openai.com/) にアクセス
+                        2. アカウントを作成/ログイン
+                        3. **API Keys** → **Create new secret key**
+                        4. キー（`sk-...`で始まる）をコピー
+                        5. 下の欄に貼り付け
+                        """)
+                
+                user_api_key = st.text_input(
+                    f"🔑 あなたの{ai_provider_choice.upper()} APIキー",
+                    type="password",
+                    placeholder="AIza... または sk-... で始まるキー",
+                    help="このAPIキーはブラウザにのみ保存され、サーバーには送信されません。"
+                )
+                
+                submitted = st.form_submit_button("✅ 登録して始める", use_container_width=True, type="primary")
+                
+                if submitted:
+                    if not user_email or not user_api_key:
+                        st.error("❌ メールアドレスとAPIキーを両方入力してください。")
+                    elif len(user_api_key) < 20:
+                        st.error("❌ APIキーが短すぎます。正しいキーを入力してください。")
+                    else:
+                        st.session_state.user_email = user_email
+                        st.session_state.user_api_key = user_api_key
+                        st.session_state.ai_provider = ai_provider_choice
+                        st.session_state.is_logged_in = True
+                        st.success(f"✅ ようこそ {user_email} さん！")
+                        st.rerun()
+            
+            st.divider()
+            st.caption("💡 APIキーは無料で取得できます。他の人のキーは使えません。")
+            st.stop()  # ログインしていない場合は処理を停止
+        
+        # ログイン済みの場合：ユーザー情報表示
+        st.success(f"👤 ログイン中: {st.session_state.user_email}")
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("🚪", help="ログアウト"):
+                st.session_state.is_logged_in = False
+                st.session_state.user_email = ""
+                st.session_state.user_api_key = ""
+                st.rerun()
+        
+        st.divider()
         # 言語選択
         language = st.selectbox(
             "🌍 Language / 言語",
@@ -197,57 +287,23 @@ def main():
             st.info("📝 **テキスト抽出モード**: PDF/TXTファイルから文字を抽出し、コピー可能な形式で表示します。\n\nAIアカウントの登録は不要です。")
             api_key = "dummy_key_not_used"  # テキスト抽出モード用のダミー
         else:
-            # AIアカウント登録画面
-            ai_name = "Google Gemini" if ai_provider == "gemini" else "OpenAI ChatGPT"
-            st.markdown(f"### 🔗 {ai_name} アカウントを登録")
+            # ログイン済みユーザーのAPIキーを使用
+            api_key = st.session_state.user_api_key
+            ai_name = "Google Gemini" if st.session_state.ai_provider == "gemini" else "OpenAI ChatGPT"
             
-            st.info("📦 **配達先住所のように、{}アカウント情報を教えてください**\n\nこの情報を登録すると、このアプリが{}アカウントに接続し、自動的に要約を作成できます。\n\n⚠️ 登録した情報はブラウザ内のみで使用され、他の人と共有されることはありません。".format(ai_name, ai_name))
+            # APIキーの確認
+            masked_key = mask_api_key(api_key)
+            st.success(f"✅ **{ai_name}アカウント登録済み**")
+            st.caption(f"🔒 登録キー: {masked_key}")
             
-            # 登録手順を表示
-            with st.expander("📝 アカウント登録手順（初回のみ必要）", expanded=False):
-                if ai_provider == "gemini":
-                    st.markdown("""
-                    **Google Gemini アカウントの登録手順**
-                    
-                    1️⃣ [Google AI Studio](https://ai.google.dev/) を開く
-                    2️⃣ Googleアカウントでログイン
-                    3️⃣ **"Get API Key"** ボタンをクリック
-                    4️⃣ **"Create API Key"** でキーを生成
-                    5️⃣ 表示されたキー（`AIza...`で始まる）をコピー
-                    6️⃣ 下の「アカウント接続情報」欄に貼り付け
-                    
-                    ✅ **無料で使えます！**
-                    """)
-                else:
-                    st.markdown("""
-                    **OpenAI ChatGPT アカウントの登録手順**
-                    
-                    1️⃣ [OpenAI Platform](https://platform.openai.com/api-keys) を開く
-                    2️⃣ OpenAIアカウントでログイン
-                    3️⃣ **"Create new secret key"** をクリック
-                    4️⃣ キーに名前を付けて生成
-                    5️⃣ 表示されたキー（`sk-...`で始まる）をコピー
-                    6️⃣ 下の「アカウント接続情報」欄に貼り付け
-                    
-                    ⚠️ 有料サービスです
-                    """)
-            
-            st.divider()
-            
-            # ローカル環境のチェック
-            if ai_provider == "gemini":
-                env_api_key = os.getenv("GOOGLE_API_KEY", "")
-            else:
-                env_api_key = os.getenv("OPENAI_API_KEY", "")
-            
-            if env_api_key:
-                # ローカル環境（.envから自動読み込み）
-                api_key = env_api_key
-                masked_key = mask_api_key(api_key)
-                st.success(f"✅ **{ai_name}アカウントが登録済みです**")
-                st.caption(f"🔒 登録情報: {masked_key} (ローカル.envファイルから自動読み込み)")
-                
-                # 処理時間に関する情報
+            # APIキーの変更オプション
+            with st.expander("🔄 APIキーを変更する", expanded=False):
+                st.warning("新しいAPIキーに変更すると、再度ログインが必要になります。")
+                if st.button("ログアウトして再登録", use_container_width=True):
+                    st.session_state.is_logged_in = False
+                    st.session_state.user_email = ""
+                    st.session_state.user_api_key = ""
+                    st.rerun()
                 with st.expander("⏱️ 処理時間について", expanded=False):
                     st.markdown("""
                     **処理に時間がかかる理由:**
@@ -537,9 +593,13 @@ def main():
                     
                     # ファイルを講義番号順にソート
                     file_data_with_order = []
+                    successful_count = 0
+                    failed_count = 0
+                    
                     for num, path in enumerate(saved_files):
                         filename = os.path.basename(path)
-                        status_text.text(f"📖 読み込み中: {filename}")
+                        status_text.text(f"📖 読み込み中 ({num+1}/{len(saved_files)}): {filename}")
+                        
                         try:
                             if path.endswith('.pdf'):
                                 content = file_loader.load_pdf(path)
@@ -549,11 +609,13 @@ def main():
                             if not content:
                                 st.warning(f"⚠️ ファイルが空です: {filename}")
                                 upload_errors.append(f"{filename}: 内容が空")
+                                failed_count += 1
                                 continue
                             
                             if "Error" in content[:50]:
                                 st.error(f"❌ 読み込みエラー: {filename} - {content[:100]}")
                                 upload_errors.append(f"{filename}: {content[:100]}")
+                                failed_count += 1
                                 continue
                             
                             # 講義番号を抽出
@@ -564,10 +626,17 @@ def main():
                                 "order": lecture_num,
                                 "original_order": num
                             })
+                            successful_count += 1
+                            st.success(f"✅ 成功: {filename} (第{lecture_num}回)" if lecture_num != 999 else f"✅ 成功: {filename}")
+                            
                         except Exception as e:
                             st.error(f"❌ 読み込みエラー: {filename} - {str(e)}")
                             upload_errors.append(f"{filename}: {str(e)}")
+                            failed_count += 1
                             continue
+                    
+                    # 読み込み結果のサマリー
+                    st.info(f"📊 読み込み完了: 成功 {successful_count}個 / 失敗 {failed_count}個 / 合計 {len(saved_files)}個")
                     
                     # 講義番号でソート（番号が同じ場合は元の順序を維持）
                     file_data_with_order.sort(key=lambda x: (x["order"], x["original_order"]))
@@ -898,15 +967,16 @@ def main():
     else:
         # 通常モード（AI使用）
         tab_integration, tab_summary, tab_reco, tab_qa = st.tabs([
-            "📋 第1章: 全体まとめ", 
-            "📝 第2章: 統合要約", 
+            "📋 第1章: 統合まとめ（全ファイル統合）", 
+            "📝 第2章: 要約（簡潔版）", 
             "🔗 第3章: 関連資料・参考文献", 
             "🎓 第4章: AIチューター (Q&A)"
         ])
 
-    # --- Chapter 1: Integration Summary (まとめ) ---
+    # --- Chapter 1: Integration Summary (統合まとめ - integration) ---
     with tab_integration:
-        render_chapter_header("全体まとめ", "📋")
+        render_chapter_header("統合まとめ（全ファイル統合）", "📋")
+        st.caption("💡 すべてのファイルの内容を統合した詳細なまとめです")
         
         # キーワード検索機能
         search_col1, search_col2 = st.columns([3, 1])
@@ -941,9 +1011,10 @@ def main():
             key="export_integration"
         )
 
-    # --- Chapter 2: Summary ---
+    # --- Chapter 2: Summary (要約 - summary) ---
     with tab_summary:
-        render_chapter_header("統合要約 & ソース一覧", "📝")
+        render_chapter_header("要約（簡潔版）& ソース一覧", "📝")
+        st.caption("💡 統合まとめをさらに簡潔にした要約版です")
         
         # キーワード検索機能
         search_col1, search_col2 = st.columns([3, 1])
