@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 import logging
+import time
 
 # 遅延インポート（高速化：必要な時だけインポート）
 # from utils import file_loader, web_loader, summarizer, qa_agent, recommender
