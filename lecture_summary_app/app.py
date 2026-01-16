@@ -114,31 +114,42 @@ def main():
     with st.sidebar:
         st.title("🧠 AI資料まとめくん")
         
-        # API Key (共有アプリ用：各ユーザーが自分のキーを入力)
-        st.info("ℹ️ このアプリは共有用です。各自のGoogle Gemini APIキーを入力してください（無料で取得可能）")
-        api_key = st.text_input(
-            "🔑 Google Gemini API Key", 
-            value="", 
-            type="password", 
-            help="Google AI Studio (https://ai.google.dev/) で無料取得できます",
-            placeholder="AIza... で始まるキーを入力"
-        )
+        # API Key (ローカル環境では.envから自動読み込み、共有環境では手動入力)
+        env_api_key = os.getenv("GOOGLE_API_KEY", "")
         
-        # API キー取得リンク
-        st.caption("[📖 APIキーの取得方法](https://ai.google.dev/) - Google AI Studioで無料登録")
-        
-        # API キーのマスク表示（セキュリティ強化）
-        if api_key:
-            # API キーの長さを検証（通常150文字以上）
-            if len(api_key) < 20:
-                st.warning("⚠️ APIキーが短すぎる可能性があります")
-            else:
-                # セッション内でのみ保存（他のユーザーと共有されない）
-                os.environ["GOOGLE_API_KEY"] = api_key
-                masked_key = mask_api_key(api_key)
-                st.success(f"✅ APIキー設定完了: {masked_key}")
+        if env_api_key:
+            # ローカル環境（.envからAPIキーが読み込まれている場合）
+            api_key = env_api_key
+            masked_key = mask_api_key(api_key)
+            st.success(f"✅ APIキー設定済み（環境変数から読み込み）: {masked_key}")
+            st.caption("ℹ️ ローカル環境で動作中（.envから自動読み込み）")
         else:
-            st.warning("⚠️ APIキーを入力してください。入力されていない場合、アプリは動作しません。")
+            # 共有環境（Streamlit Cloudなど、各ユーザーが入力）
+            st.info("ℹ️ 共有環境で動作中：各自のGoogle Gemini APIキーを入力してください（無料で取得可能）")
+            api_key = st.text_input(
+                "🔑 Google Gemini API Key", 
+                value="", 
+                type="password", 
+                help="Google AI Studio (https://ai.google.dev/) で無料取得できます",
+                placeholder="AIza... で始まるキーを入力"
+            )
+            
+            # API キー取得リンク
+            st.caption("[📖 APIキーの取得方法](https://ai.google.dev/) - Google AI Studioで無料登録")
+            
+            # API キーのマスク表示（セキュリティ強化）
+            if api_key:
+                # API キーの長さを検証（通常150文字以上）
+                if len(api_key) < 20:
+                    st.warning("⚠️ APIキーが短すぎる可能性があります")
+                else:
+                    # セッション内でのみ保存（他のユーザーと共有されない）
+                    os.environ["GOOGLE_API_KEY"] = api_key
+                    masked_key = mask_api_key(api_key)
+                    st.success(f"✅ APIキー設定完了: {masked_key}")
+            else:
+                st.warning("⚠️ APIキーを入力してください。入力されていない場合、アプリは動作しません。")
+                api_key = ""  # 空文字列を設定
         
         st.divider()
 
