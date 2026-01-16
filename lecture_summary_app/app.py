@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 import logging
 import time
 import streamlit.components.v1 as components
+import glob
+import shutil
+import stat
+import threading
+import gc
 
 # 遅延インポート（高速化：必要な時だけインポート）
 # from utils import file_loader, web_loader, summarizer, qa_agent, recommender
