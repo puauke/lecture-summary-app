@@ -370,6 +370,7 @@ def main():
                         status_text.text("💬 Q&A機能初期化中...")
                         progress_bar.progress(80)
                         try:
+                            from utils import qa_agent
                             st.session_state.full_context = qa_agent.initialize_vector_store(text_data, api_key)
                         except Exception as e:
                             st.error(f"❌ Q&A初期化エラー: {str(e)}")
@@ -378,6 +379,7 @@ def main():
                         status_text.text("🔗 関連資料を検索中...")
                         progress_bar.progress(90)
                         try:
+                            from utils import recommender
                             st.session_state.recommendations = recommender.recommend_sources(st.session_state.summary, api_key, skip_if_not_found=True)
                         except Exception as e:
                             st.error(f"❌ 推薦エラー: {str(e)}")
@@ -460,7 +462,9 @@ def main():
             data=export_md,
             file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
             mime="text/markdown",
-            use_container_width=True
+            use_container_width=True,
+            key="export_summary",
+            key="export_integration"
         )
 
     # --- Chapter 2: Summary ---
@@ -498,7 +502,8 @@ def main():
             data=export_md,
             file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
             mime="text/markdown",
-            use_container_width=True
+            use_container_width=True,
+            key="export_summary"
         )
 
     # --- Chapter 3: Recommendations ---
