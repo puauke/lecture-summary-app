@@ -1175,150 +1175,150 @@ def main():
             "🎓 第4章: AIチューター (Q&A)"
         ])
 
-    # --- Chapter 1: Integration Summary (統合まとめ - integration) ---
-    with tab_integration:
-        render_chapter_header("統合まとめ（全ファイル統合）", "📋")
-        st.caption("💡 すべてのファイルの内容を統合した詳細なまとめです")
-        
-        # キーワード検索機能
-        search_col1, search_col2 = st.columns([3, 1])
-        with search_col1:
-            search_keyword = st.text_input(
-                "🔍 キーワード検索", 
-                value=st.session_state.search_keyword, 
-                placeholder="検索したいキーワードを入力", 
-                key="search_integration"
+        # --- Chapter 1: Integration Summary (統合まとめ - integration) ---
+        with tab_integration:
+            render_chapter_header("統合まとめ（全ファイル統合）", "📋")
+            st.caption("💡 すべてのファイルの内容を統合した詳細なまとめです")
+            
+            # キーワード検索機能
+            search_col1, search_col2 = st.columns([3, 1])
+            with search_col1:
+                search_keyword = st.text_input(
+                    "🔍 キーワード検索", 
+                    value=st.session_state.search_keyword, 
+                    placeholder="検索したいキーワードを入力", 
+                    key="search_integration"
+                )
+            with search_col2:
+                if st.button("検索", key="search_btn_integration"):
+                    st.session_state.search_keyword = search_keyword
+            
+            # ハイライト表示
+            displayed_text = highlight_keywords(
+                st.session_state.integration, 
+                [search_keyword] if search_keyword else []
             )
-        with search_col2:
-            if st.button("検索", key="search_btn_integration"):
-                st.session_state.search_keyword = search_keyword
-        
-        # ハイライト表示
-        displayed_text = highlight_keywords(
-            st.session_state.integration, 
-            [search_keyword] if search_keyword else []
-        )
-        
-        st.markdown(displayed_text)
-        
-        # エクスポート機能
-        st.divider()
-        export_md = export_to_markdown(st.session_state.summary, st.session_state.integration, st.session_state.text_data_list)
-        st.download_button(
-            label="📥 Markdownでエクスポート",
-            data=export_md,
-            file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
-            mime="text/markdown",
-            use_container_width=True,
-            key="export_integration"
-        )
-
-    # --- Chapter 2: Summary (要約 - summary) ---
-    with tab_summary:
-        render_chapter_header("要約（簡潔版）& ソース一覧", "📝")
-        st.caption("💡 統合まとめをさらに簡潔にした要約版です")
-        
-        # キーワード検索機能
-        search_col1, search_col2 = st.columns([3, 1])
-        with search_col1:
-            search_keyword_summary = st.text_input(
-                "🔍 キーワード検索", 
-                placeholder="検索したいキーワードを入力", 
-                key="search_summary"
-            )
-        with search_col2:
-            if st.button("検索", key="search_btn_summary"):
-                st.session_state.search_keyword = search_keyword_summary
-        
-        # ハイライト表示
-        displayed_summary = highlight_keywords(
-            st.session_state.summary, 
-            [st.session_state.search_keyword] if st.session_state.search_keyword else []
-        )
-        
-        st.markdown(displayed_summary)
-        
-        st.divider()
-        st.subheader("📚 使用されたソース")
-        for item in st.session_state.text_data_list:
-            if item['source'].startswith("http"):
-                st.markdown(f"- 🌐 [{item['source']}]({item['source']})")
-            else:
-                st.markdown(f"- 📄 {item['source']} (ローカルファイル)")
-        
-        # エクスポート機能
-        st.divider()
-        export_md = export_to_markdown(st.session_state.summary, st.session_state.integration, st.session_state.text_data_list)
-        st.download_button(
-            label="📥 Markdownでエクスポート",
-            data=export_md,
-            file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
-            mime="text/markdown",
-            use_container_width=True,
-            key="export_summary"
-        )
-
-    # --- Chapter 3: Recommendations ---
-    with tab_reco:
-        render_chapter_header("学習におすすめの関連リンク", "🔗")
-        st.info("AIが要約内容をもとに、信頼性の高そうな外部リソースをピックアップしました。")
-        
-        # 手動検索機能
-        st.subheader("🔍 手動で関連資料を検索")
-        manual_query = st.text_input("検索キーワードを入力", placeholder="例: 機械学習 入門", key="manual_search_query")
-        if st.button("検索", key="manual_search_btn"):
-            if manual_query:
-                with st.spinner("検索中..."):
-                    try:
-                        from utils import recommender
-                        manual_results = recommender.manual_search(manual_query)
-                        st.session_state.manual_search_results = manual_results
-                        st.success(f"✅ {len(manual_results)}件の結果を取得しました")
-                    except Exception as e:
-                        st.error(f"❌ 検索エラー: {str(e)}")
-            else:
-                st.warning("検索キーワードを入力してください")
-        
-        st.divider()
-        
-        # 自動検索結果
-        if st.session_state.recommendations:
-            st.subheader("🤖 AI推薦リンク")
-            for rec in st.session_state.recommendations:
-                st.markdown(f"### [{rec['title']}]({rec['href']})")
-                st.caption(rec['body'])
-                st.markdown("---")
-        else:
-            st.caption("ℹ️ 自動推薦結果なし（手動検索をお試しください）")
-        
-        # 手動検索結果
-        if "manual_search_results" in st.session_state and st.session_state.manual_search_results:
+            
+            st.markdown(displayed_text)
+            
+            # エクスポート機能
             st.divider()
-            st.subheader("📋 手動検索結果")
-            for rec in st.session_state.manual_search_results:
-                st.markdown(f"### [{rec['title']}]({rec['href']})")
-                st.caption(rec['body'])
-                st.markdown("---")
+            export_md = export_to_markdown(st.session_state.summary, st.session_state.integration, st.session_state.text_data_list)
+            st.download_button(
+                label="📥 Markdownでエクスポート",
+                data=export_md,
+                file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
+                mime="text/markdown",
+                use_container_width=True,
+                key="export_integration"
+            )
 
-    # --- Chapter 4: AI Q&A ---
-    with tab_qa:
-        render_chapter_header("AIチューター & 用語検索", "🙋‍♂️")
-        st.info("読み込んだ全ての資料に基づいて、AIがあなたの質問に答えます。")
-        
-        # APIキーの確実な確認と設定（Q&A機能用）
-        if ai_provider != "extract_only":
-            if not api_key or len(api_key.strip()) < 20:
-                st.error("❌ APIキーが設定されていません。サイドバーでログインしてください。")
-                st.stop()
-            else:
-                # 環境変数に確実に設定
-                if st.session_state.ai_provider == "gemini":
-                    os.environ["GOOGLE_API_KEY"] = api_key.strip()
+        # --- Chapter 2: Summary (要約 - summary) ---
+        with tab_summary:
+            render_chapter_header("要約（簡潔版）& ソース一覧", "📝")
+            st.caption("💡 統合まとめをさらに簡潔にした要約版です")
+            
+            # キーワード検索機能
+            search_col1, search_col2 = st.columns([3, 1])
+            with search_col1:
+                search_keyword_summary = st.text_input(
+                    "🔍 キーワード検索", 
+                    placeholder="検索したいキーワードを入力", 
+                    key="search_summary"
+                )
+            with search_col2:
+                if st.button("検索", key="search_btn_summary"):
+                    st.session_state.search_keyword = search_keyword_summary
+            
+            # ハイライト表示
+            displayed_summary = highlight_keywords(
+                st.session_state.summary, 
+                [st.session_state.search_keyword] if st.session_state.search_keyword else []
+            )
+            
+            st.markdown(displayed_summary)
+            
+            st.divider()
+            st.subheader("📚 使用されたソース")
+            for item in st.session_state.text_data_list:
+                if item['source'].startswith("http"):
+                    st.markdown(f"- 🌐 [{item['source']}]({item['source']})")
                 else:
-                    os.environ["OPENAI_API_KEY"] = api_key.strip()
-        
-        # 用語・数式検索機能を追加
-        st.subheader("🔍 検索機能")
+                    st.markdown(f"- 📄 {item['source']} (ローカルファイル)")
+            
+            # エクスポート機能
+            st.divider()
+            export_md = export_to_markdown(st.session_state.summary, st.session_state.integration, st.session_state.text_data_list)
+            st.download_button(
+                label="📥 Markdownでエクスポート",
+                data=export_md,
+                file_name=f"{st.session_state.category}_summary_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.md",
+                mime="text/markdown",
+                use_container_width=True,
+                key="export_summary"
+            )
+
+        # --- Chapter 3: Recommendations ---
+        with tab_reco:
+            render_chapter_header("学習におすすめの関連リンク", "🔗")
+            st.info("AIが要約内容をもとに、信頼性の高そうな外部リソースをピックアップしました。")
+            
+            # 手動検索機能
+            st.subheader("🔍 手動で関連資料を検索")
+            manual_query = st.text_input("検索キーワードを入力", placeholder="例: 機械学習 入門", key="manual_search_query")
+            if st.button("検索", key="manual_search_btn"):
+                if manual_query:
+                    with st.spinner("検索中..."):
+                        try:
+                            from utils import recommender
+                            manual_results = recommender.manual_search(manual_query)
+                            st.session_state.manual_search_results = manual_results
+                            st.success(f"✅ {len(manual_results)}件の結果を取得しました")
+                        except Exception as e:
+                            st.error(f"❌ 検索エラー: {str(e)}")
+                else:
+                    st.warning("検索キーワードを入力してください")
+            
+            st.divider()
+            
+            # 自動検索結果
+            if st.session_state.recommendations:
+                st.subheader("🤖 AI推薦リンク")
+                for rec in st.session_state.recommendations:
+                    st.markdown(f"### [{rec['title']}]({rec['href']})")
+                    st.caption(rec['body'])
+                    st.markdown("---")
+            else:
+                st.caption("ℹ️ 自動推薦結果なし（手動検索をお試しください）")
+            
+            # 手動検索結果
+            if "manual_search_results" in st.session_state and st.session_state.manual_search_results:
+                st.divider()
+                st.subheader("📋 手動検索結果")
+                for rec in st.session_state.manual_search_results:
+                    st.markdown(f"### [{rec['title']}]({rec['href']})")
+                    st.caption(rec['body'])
+                    st.markdown("---")
+
+        # --- Chapter 4: AI Q&A ---
+        with tab_qa:
+            render_chapter_header("AIチューター & 用語検索", "🙋‍♂️")
+            st.info("読み込んだ全ての資料に基づいて、AIがあなたの質問に答えます。")
+            
+            # APIキーの確実な確認と設定（Q&A機能用）
+            if ai_provider != "extract_only":
+                if not api_key or len(api_key.strip()) < 20:
+                    st.error("❌ APIキーが設定されていません。サイドバーでログインしてください。")
+                    st.stop()
+                else:
+                    # 環境変数に確実に設定
+                    if st.session_state.ai_provider == "gemini":
+                        os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                    else:
+                        os.environ["OPENAI_API_KEY"] = api_key.strip()
+            
+            # 用語・数式検索機能を追加
+            st.subheader("🔍 検索機能")
         search_mode = st.radio(
             "検索モード",
             ["📖 用語・単語検索", "🔢 数式・記号検索", "📚 両方表示"],
