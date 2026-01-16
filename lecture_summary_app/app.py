@@ -4,6 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import logging
 import time
+import streamlit.components.v1 as components
 
 # 遅延インポート（高速化：必要な時だけインポート）
 # from utils import file_loader, web_loader, summarizer, qa_agent, recommender
@@ -93,8 +94,49 @@ def export_to_markdown(summary, integration, sources):
     content += f"\n---\n生成日時: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     return content
 
+# LocalStorage用のヘルパー関数
+def get_local_storage():
+    """localStorageからログイン情報を取得"""
+    return components.html("""
+        <script>
+        const data = {
+            user_email: localStorage.getItem('user_email') || '',
+            user_api_key: localStorage.getItem('user_api_key') || '',
+            ai_provider: localStorage.getItem('ai_provider') || 'gemini',
+            is_logged_in: localStorage.getItem('is_logged_in') === 'true'
+        };
+        window.parent.postMessage({type: 'streamlit:setComponentValue', value: data}, '*');
+        </script>
+    """, height=0)
+
+def set_local_storage(user_email, user_api_key, ai_provider, is_logged_in):
+    """localStorageにログイン情報を保存"""
+    components.html(f"""
+        <script>
+        localStorage.setItem('user_email', '{user_email}');
+        localStorage.setItem('user_api_key', '{user_api_key}');
+        localStorage.setItem('ai_provider', '{ai_provider}');
+        localStorage.setItem('is_logged_in', '{str(is_logged_in).lower()}');
+        </script>
+    """, height=0)
+
+def clear_local_storage():
+    """localStorageのログイン情報をクリア"""
+    components.html("""
+        <script>
+        localStorage.removeItem('user_email');
+        localStorage.removeItem('user_api_key');
+        localStorage.removeItem('ai_provider');
+        localStorage.removeItem('is_logged_in');
+        </script>
+    """, height=0)
+
 def main():
     # セッション状態の確実な初期化（最優先）
+    # localStorageから初回読み込み
+    if "storage_loaded" not in st.session_state:
+        st.session_state.storage_loaded = False
+    
     # ユーザー認証関連を最初に初期化
     if "is_logged_in" not in st.session_state:
         st.session_state.is_logged_in = False
@@ -104,6 +146,27 @@ def main():
         st.session_state.user_api_key = ""
     if "ai_provider" not in st.session_state:
         st.session_state.ai_provider = "gemini"
+    
+    # localStorageから読み込み（初回のみ）
+    if not st.session_state.storage_loaded:
+        try:
+            stored_data = get_local_storage()
+            if stored_data and isinstance(stored_data, dict):
+                if stored_data.get('is_logged_in'):
+                    st.session_state.is_logged_in = True
+                    st.session_state.user_email = stored_data.get('user_email', '')
+                    st.session_state.user_api_key = stored_data.get('user_api_key', '')
+                    st.session_state.ai_provider = stored_data.get('ai_provider', 'gemini')
+                    
+                    # 環境変数にも設定
+                    if st.session_state.ai_provider == "gemini":
+                        os.environ["GOOGLE_API_KEY"] = st.session_state.user_api_key
+                    else:
+                        os.environ["OPENAI_API_KEY"] = st.session_state.user_api_key
+        except:
+            pass  # localStorageの読み込み失敗は無視
+        
+        st.session_state.storage_loaded = True
     
     # その他のセッション状態を初期化
     if "data_loaded" not in st.session_state:
@@ -279,6 +342,9 @@ def main():
                         st.session_state.ai_provider = ai_provider_choice
                         st.session_state.is_logged_in = True
                         
+                        # localStorageにも保存
+                        set_local_storage(user_email, user_api_key, ai_provider_choice, True)
+                        
                         # 環境変数にも設定
                         if ai_provider_choice == "gemini":
                             os.environ["GOOGLE_API_KEY"] = user_api_key
@@ -304,6 +370,10 @@ def main():
                 st.session_state.is_logged_in = False
                 st.session_state.user_email = ""
                 st.session_state.user_api_key = ""
+                
+                # localStorageもクリア
+                clear_local_storage()
+                
                 # 環境変数もクリア
                 if "GOOGLE_API_KEY" in os.environ:
                     del os.environ["GOOGLE_API_KEY"]
