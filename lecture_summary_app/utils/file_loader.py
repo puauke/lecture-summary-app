@@ -4,8 +4,8 @@ from pathlib import Path
 import hashlib
 import re
 
-# Maximum file size: 5MB
-MAX_FILE_SIZE = 5 * 1024 * 1024
+# Maximum file size: 50MB (14 files × 3MB対応)
+MAX_FILE_SIZE = 50 * 1024 * 1024
 
 # 許可される拡張子
 ALLOWED_EXTENSIONS = {'.pdf', '.txt'}
@@ -37,7 +37,7 @@ def validate_file(uploaded_file, category):
     
     # ファイルサイズの検証
     if uploaded_file.size > MAX_FILE_SIZE:
-        raise ValueError(f"❌ ファイルサイズが大きすぎます ({uploaded_file.size / 1024 / 1024:.1f}MB > 5MB)")
+        raise ValueError(f"❌ ファイルサイズが大きすぎます ({uploaded_file.size / 1024 / 1024:.1f}MB > 50MB)")
     
     return True
 
@@ -83,7 +83,7 @@ def load_pdf(file_path):
         # Check file size first
         file_size = os.path.getsize(file_path)
         if file_size > MAX_FILE_SIZE:
-            return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB > 5MB)。最初の50ページのみを処理します。"
+            return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB > 50MB)。最初の50ページのみを処理します。"
         
         doc = fitz.open(file_path)
         max_pages = min(len(doc), 50)  # Limit to first 50 pages

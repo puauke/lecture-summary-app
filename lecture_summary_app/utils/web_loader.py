@@ -42,6 +42,29 @@ def validate_url(url: str) -> bool:
             if re.match(pattern, hostname):
                 return False
         
+        # 危険なドメインのブラックリスト
+        dangerous_domains = [
+            '.tk', '.ml', '.ga', '.cf', '.gq',  # 無料ドメイン（フィッシング多発）
+        ]
+        
+        hostname_lower = hostname.lower()
+        for domain in dangerous_domains:
+            if hostname_lower.endswith(domain):
+                print(f"⚠️ 危険な可能性のあるドメインをブロック: {hostname}")
+                return False
+        
+        # 危険なキーワードを含むURL
+        url_lower = url.lower()
+        dangerous_keywords = [
+            'phishing', 'malware', 'virus', 'hack', 'crack',
+            'download-free', 'prize', 'winner', 'claim',
+        ]
+        
+        for keyword in dangerous_keywords:
+            if keyword in url_lower:
+                print(f"⚠️ 危険なキーワードを含むURLをブロック: {keyword}")
+                return False
+        
         return True
     except Exception:
         return False
