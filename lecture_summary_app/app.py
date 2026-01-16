@@ -621,9 +621,12 @@ def main():
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
+                # 処理開始時刻を記録
+                overall_start_time = time.time()
+                
                 try:
                     # 1. Load Data
-                    status_text.text("📂 データを読み込み中...")
+                    status_text.text("📂 データを読み込み中... (推定時間: ファイル数により変動)")
                     progress_bar.progress(10)
                     
                     # キャンセルチェック
@@ -664,7 +667,8 @@ def main():
                                 continue
                     
                     # LOAD ALL FILES from the category directory (Persistent Storage)
-                    status_text.text("📄 保存済みファイルを読み込み中...")
+                    elapsed_so_far = int(time.time() - overall_start_time)
+                    status_text.text(f"📄 保存済みファイルを読み込み中... (経過: {elapsed_so_far}秒)")
                     progress_bar.progress(25)
                     
                     # キャンセルチェック
@@ -676,7 +680,10 @@ def main():
                     
                     import glob
                     saved_files = glob.glob(f"data/{category}/*")
-                    status_text.text(f"📄 {len(saved_files)}個のファイルを発見...")
+                    
+                    # ファイル数に基づく推定時間を表示
+                    estimated_read_time = len(saved_files) * 2  # 1ファイルあたり約2秒と推定
+                    status_text.text(f"📄 {len(saved_files)}個のファイルを発見... (推定読込時間: 約{estimated_read_time}秒)")
                     
                     # ファイルを講義番号順にソート
                     file_data_with_order = []
@@ -685,7 +692,10 @@ def main():
                     
                     for num, path in enumerate(saved_files):
                         filename = os.path.basename(path)
-                        status_text.text(f"📖 読み込み中 ({num+1}/{len(saved_files)}): {filename}")
+                        elapsed_so_far = int(time.time() - overall_start_time)
+                        remaining_files = len(saved_files) - num
+                        estimated_remaining = remaining_files * 2
+                        status_text.text(f"📖 読み込み中 ({num+1}/{len(saved_files)}): {filename} | 経過: {elapsed_so_far}秒 / 推定残り: 約{estimated_remaining}秒")
                         
                         try:
                             if path.endswith('.pdf'):
@@ -794,13 +804,20 @@ def main():
                         
                         # 2. Summarize (テキスト抽出モードはスキップ)
                         if ai_provider == "extract_only":
-                            status_text.text("📝 テキスト抽出完了！「抽出テキスト」タブで確認できます。")
+                            total_elapsed = int(time.time() - overall_start_time)
+                            status_text.success(f"📝 テキスト抽出完了！「抽出テキスト」タブで確認できます。(処理時間: {total_elapsed}秒)")
                             st.session_state.summary = "⚠️ テキスト抽出モード: AI連携を選択すると、このアプリ内で自動的に要約を生成できます。"
                             st.session_state.integration = "⚠️ テキスト抽出モード: 抽出されたテキストは「抽出テキスト」タブで確認できます。"
                             progress_bar.progress(100)
                         else:
                             ai_name_processing = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
-                            status_text.text(f"🔗 {ai_name_processing}アカウントに接続中...")
+                            
+                            # 文字数から推定時間を計算して表示
+                            total_chars = sum(len(item['content']) for item in text_data)
+                            estimated_ai_time = max(30, int(total_chars / 10000 * 30))
+                            elapsed_so_far = int(time.time() - overall_start_time)
+                            
+                            status_text.text(f"🔗 {ai_name_processing}アカウントに接続中... (推定AI処理時間: 約{estimated_ai_time}秒 | 経過: {elapsed_so_far}秒)")
                             progress_bar.progress(45)
                             import time
                             import threading
