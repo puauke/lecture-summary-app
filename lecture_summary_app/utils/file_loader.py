@@ -4,8 +4,8 @@ from pathlib import Path
 import hashlib
 import re
 
-# Maximum file size: 50MB (14 files × 3MB対応)
-MAX_FILE_SIZE = 50 * 1024 * 1024
+# Maximum file size: 100MB (より多くのファイルに対応)
+MAX_FILE_SIZE = 100 * 1024 * 1024
 
 # 許可される拡張子
 ALLOWED_EXTENSIONS = {'.pdf', '.txt'}
@@ -91,7 +91,7 @@ def validate_file(uploaded_file, category):
     
     # ファイルサイズの検証
     if uploaded_file.size > MAX_FILE_SIZE:
-        raise ValueError(f"❌ ファイルサイズが大きすぎます ({uploaded_file.size / 1024 / 1024:.1f}MB > 50MB)")
+        raise ValueError(f"❌ ファイルサイズが大きすぎます ({uploaded_file.size / 1024 / 1024:.1f}MB > 100MB)")
     
     return True
 
@@ -138,10 +138,11 @@ def load_pdf(file_path):
         # Check file size first
         file_size = os.path.getsize(file_path)
         if file_size > MAX_FILE_SIZE:
-            return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB > 50MB)。最初の50ページのみを処理します。"
+            return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB > 100MB)。最初の100ページのみを処理します。"
         
         doc = fitz.open(file_path)
-        max_pages = min(len(doc), 50)  # Limit to first 50 pages
+        total_pages = len(doc)  # doc.close()前に取得
+        max_pages = min(total_pages, 100)  # Limit to first 100 pages
         
         # 高速化: テキスト抽出を並列化せず、シンプルに高速モードで実行
         for page_num in range(max_pages):
@@ -151,8 +152,8 @@ def load_pdf(file_path):
         
         doc.close()  # メモリ解放（高速化）
         
-        if len(doc) > 50:
-            text_content += f"\n\n[注記: {len(doc) - 50}ページ以降は処理されていません。]"
+        if total_pages > 100:
+            text_content += f"\n\n[注記: {total_pages - 100}ページ以降は処理されていません。]"
         
         return text_content
     except Exception as e:

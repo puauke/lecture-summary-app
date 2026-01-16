@@ -469,8 +469,10 @@ def main():
                 ai_name_btn = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
                 st.error(f"❌ {ai_name_btn}アカウントを登録してください！\n\n上の「アカウント接続情報」欄に、{ai_name_btn}アカウントの接続情報を入力してください。")
             else:
-                # 遅延インポート（使用時のみ）
+                # 遅延インポート（使用時のみ） - 全モジュール一括インポート
                 from utils import file_loader, web_loader, summarizer, qa_agent, recommender
+                import glob
+                import shutil
                 
                 # プログレスバー追加
                 progress_bar = st.progress(0)
@@ -489,6 +491,7 @@ def main():
                         st.stop()
                     
                     text_data = [] # List of {content: str, source: str}
+                    upload_errors = []  # エラーを記録
                     
                     # Save uploaded files first
                     if uploaded_files:
@@ -501,13 +504,20 @@ def main():
                                 st.stop()
                             
                             try:
+                                # ファイルサイズを事前にチェックして表示
+                                file_size_mb = f.size / 1024 / 1024
+                                status_text.text(f"💾 ファイル保存中: {f.name} ({file_size_mb:.1f}MB)")
+                                
                                 file_loader.save_uploaded_file(f, category)
                                 progress_bar.progress(10 + (idx + 1) * 5)
                             except ValueError as ve:
-                                st.error(f"❌ {ve} - ファイル: {f.name}")
+                                error_msg = str(ve)
+                                st.error(f"{error_msg} - ファイル: {f.name}")
+                                upload_errors.append(f"{f.name}: {error_msg}")
                                 continue
                             except Exception as e:
                                 st.error(f"❌ ファイル処理エラー: {f.name} - {str(e)}")
+                                upload_errors.append(f"{f.name}: {str(e)}")
                                 continue
                     
                     # LOAD ALL FILES from the category directory (Persistent Storage)
@@ -523,28 +533,40 @@ def main():
                     
                     import glob
                     saved_files = glob.glob(f"data/{category}/*")
+                    status_text.text(f"📄 {len(saved_files)}個のファイルを発見...")
                     
                     # ファイルを講義番号順にソート
                     file_data_with_order = []
                     for num, path in enumerate(saved_files):
                         filename = os.path.basename(path)
+                        status_text.text(f"📖 読み込み中: {filename}")
                         try:
                             if path.endswith('.pdf'):
                                 content = file_loader.load_pdf(path)
                             else:
                                 content = file_loader.load_text(path)
                             
-                            if content and "Error" not in content[:50]:
-                                # 講義番号を抽出
-                                lecture_num = file_loader.extract_lecture_number(filename, content[:500])
-                                file_data_with_order.append({
-                                    "content": content,
-                                    "source": filename,
-                                    "order": lecture_num,
-                                    "original_order": num
-                                })
+                            if not content:
+                                st.warning(f"⚠️ ファイルが空です: {filename}")
+                                upload_errors.append(f"{filename}: 内容が空")
+                                continue
+                            
+                            if "Error" in content[:50]:
+                                st.error(f"❌ 読み込みエラー: {filename} - {content[:100]}")
+                                upload_errors.append(f"{filename}: {content[:100]}")
+                                continue
+                            
+                            # 講義番号を抽出
+                            lecture_num = file_loader.extract_lecture_number(filename, content[:500])
+                            file_data_with_order.append({
+                                "content": content,
+                                "source": filename,
+                                "order": lecture_num,
+                                "original_order": num
+                            })
                         except Exception as e:
                             st.error(f"❌ 読み込みエラー: {filename} - {str(e)}")
+                            upload_errors.append(f"{filename}: {str(e)}")
                             continue
                     
                     # 講義番号でソート（番号が同じ場合は元の順序を維持）
@@ -594,7 +616,21 @@ def main():
                             st.error(f"❌ RSS取得エラー: {str(e)}")
 
                     if not text_data:
-                        st.error("❌ データが読み込まれませんでした。ファイルをアップロードするか、有効なURLを入力してください。")
+                        error_details = "\n\n**考えられる原因:**\n"
+                        if upload_errors:
+                            error_details += "\n⚠️ **ファイルアップロードエラー:**\n"
+                            for err in upload_errors:
+                                error_details += f"- {err}\n"
+                        if uploaded_files:
+                            error_details += f"\n📤 アップロードされたファイル数: {len(uploaded_files)}個\n"
+                        if not uploaded_files and not search_query and not direct_url and not rss_url:
+                            error_details += "\n- ファイルまたはURLが入力されていません\n"
+                        error_details += "\n💡 **解決方法:**\n"
+                        error_details += "- 1ファイルは100MB以下にしてください\n"
+                        error_details += "- PDFファイルの場合は100ページ以内にしてください\n"
+                        error_details += "- ファイル形式は .pdf または .txt のみ対応しています\n"
+                        
+                        st.error(f"❌ データが読み込まれませんでした。{error_details}")
                         progress_bar.empty()
                         status_text.empty()
                     else:
