@@ -30,8 +30,16 @@ def get_answer(query, context_text, api_key, ai_provider="gemini"):
     Returns:
         (回答テキスト, ソースリスト) のタプル
     """
+    import os
+    
     if not context_text:
         return "❌ 資料が読み込まれていません。サイドバーから資料をアップロードしてください。", []
+
+    # 環境変数に確実にAPIキーを設定
+    if ai_provider == "openai":
+        os.environ["OPENAI_API_KEY"] = api_key
+    else:
+        os.environ["GOOGLE_API_KEY"] = api_key
 
     # Initialize Chat Model with optimized settings
     if ai_provider == "openai":
@@ -39,9 +47,9 @@ def get_answer(query, context_text, api_key, ai_provider="gemini"):
         llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=api_key, temperature=0.1)
     else:
         from langchain_google_genai import ChatGoogleGenerativeAI
+        # 環境変数から自動的にAPIキーを読み取る
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash", 
-            google_api_key=api_key, 
             temperature=0.1
         )
     

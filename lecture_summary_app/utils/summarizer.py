@@ -5,6 +5,14 @@ def generate_summary(text_data_list, api_key, output_language="ja", ai_provider=
     output_language: 'ja' for Japanese, 'en' for English, etc.
     ai_provider: 'gemini' or 'openai'
     """
+    import os
+    
+    # 環境変数に確実にAPIキーを設定
+    if ai_provider == "openai":
+        os.environ["OPENAI_API_KEY"] = api_key
+    else:
+        os.environ["GOOGLE_API_KEY"] = api_key
+    
     # Lazy imports to prevent startup errors
     if ai_provider == "openai":
         from langchain_openai import ChatOpenAI
@@ -12,9 +20,9 @@ def generate_summary(text_data_list, api_key, output_language="ja", ai_provider=
     else:
         from langchain_google_genai import ChatGoogleGenerativeAI
         # Geminiの最新モデル名（temperature設定で高速化）
+        # 環境変数から自動的にAPIキーを読み取る
         llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash", 
-            google_api_key=api_key,
             temperature=0.3,  # 低温度で高速化と一貫性向上
             max_tokens=4096   # トークン数制限で高速化
         )

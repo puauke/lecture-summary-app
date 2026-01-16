@@ -4,14 +4,22 @@ def recommend_sources(summary_text, api_key, skip_if_not_found=True, ai_provider
     skip_if_not_found: Trueの場合、見つからなければ空リストを返す（無理に探さない）
     ai_provider: 'gemini' or 'openai'
     """
+    import os
     from .web_loader import search_web
+    
+    # 環境変数に確実にAPIキーを設定
+    if ai_provider == "openai":
+        os.environ["OPENAI_API_KEY"] = api_key
+    else:
+        os.environ["GOOGLE_API_KEY"] = api_key
     
     if ai_provider == "openai":
         from langchain_openai import ChatOpenAI
         llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=api_key, temperature=0.7)
     else:
         from langchain_google_genai import ChatGoogleGenerativeAI
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key)
+        # 環境変数から自動的にAPIキーを読み取る
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
     
     # 1. Extract Keywords
     prompt = f"""
