@@ -144,6 +144,9 @@ def main():
             st.info("**このアプリを使うには、あなた自身のAIアカウント情報が必要です。**\n\n" +
                    "他の人のAPIキーは使えません。無料で取得できます！")
             
+            st.markdown("---")
+            st.caption("💡 **初めての方へ:** 下のフォームで登録すると、すぐにアプリを使い始められます。")
+            
             with st.form("login_form"):
                 user_email = st.text_input(
                     "📧 メールアドレス（識別用）",
@@ -253,10 +256,12 @@ def main():
                 if submitted:
                     if not user_email or not user_api_key:
                         st.error("❌ メールアドレスとAPIキーを両方入力してください。")
-                    elif len(user_api_key) < 20:
+                    elif len(user_api_key.strip()) < 20:
                         st.error("❌ APIキーが短すぎます。正しいキーを入力してください。")
                     else:
-                        st.session_state.user_email = user_email
+                        # APIキーの前後の空白を削除
+                        user_api_key = user_api_key.strip()
+                        st.session_state.user_email = user_email.strip()
                         st.session_state.user_api_key = user_api_key
                         st.session_state.ai_provider = ai_provider_choice
                         st.session_state.is_logged_in = True
@@ -287,16 +292,21 @@ def main():
         )
         st.session_state.language = language
         
-        # モード選択
+        # モード選択（ログイン時の選択を反映）
+        provider_options = ["extract_only", "gemini", "openai"]
+        # ログイン時に選択したプロバイダーをデフォルトにする
+        default_index = 0
+        if st.session_state.ai_provider in provider_options:
+            default_index = provider_options.index(st.session_state.ai_provider)
+        
         ai_provider = st.selectbox(
             "⚙️ 機能モードを選択してください",
-            ["extract_only", "gemini", "openai"],
+            provider_options,
+            index=default_index,
             format_func=lambda x: "📝 テキスト抽出のみ（AIアカウント不要）" if x == "extract_only" else ("🔷 Google Gemini アカウントで自動要約" if x == "gemini" else "🟢 ChatGPT アカウントで自動要約"),
             key="ai_provider_selector",
             help="• テキスト抽出: PDFを文字に変換するだけ\n• AIアカウント: 個人的なGemini/ChatGPTアカウントを登録して自動要約を生成"
         )
-        if "ai_provider" not in st.session_state:
-            st.session_state.ai_provider = ai_provider
         st.session_state.ai_provider = ai_provider
         
         # 言語別テキスト定数
@@ -363,60 +373,29 @@ def main():
                     st.session_state.user_email = ""
                     st.session_state.user_api_key = ""
                     st.rerun()
-                with st.expander("⏱️ 処理時間について", expanded=False):
-                    st.markdown("""
-                    **処理に時間がかかる理由:**
-                    
-                    1. **複数回のAI処理** 🤖
-                       - 要約生成（1回目）
-                       - まとめ生成（2回目）
-                       - 各処理で20～60秒程度
-                    
-                    2. **ネットワーク通信** 🌐
-                       - GoogleサーバーとのAPI通信
-                       - インターネット速度に依存
-                    
-                    3. **大量テキスト処理** 📄
-                       - 複数ファイルの統合
-                       - 1万文字あたり30～60秒
-                    
-                    **💡 高速化のヒント:**
-                    - ファイル数を減らす（1～3ファイル推奨）
-                    - 各ファイルのサイズを小さくする
-                    - 不要なページを削除してからアップロード
-                    """)
-            else:
-                # アカウント接続情報の入力
-                placeholder = "AIza... で始まるキー" if ai_provider == "gemini" else "sk-... で始まるキー"
+            
+            with st.expander("⏱️ 処理時間について", expanded=False):
+                st.markdown("""
+                **処理に時間がかかる理由:**
                 
-                st.markdown(f"**📦 {ai_name}アカウント接続情報を入力**")
-                api_key = st.text_input(
-                    f"{ai_name}アカウント接続情報", 
-                    value="", 
-                    type="password", 
-                    help=f"上の手順で取得したキーを貼り付けてください。これで{ai_name}アカウントと接続されます。",
-                    placeholder=placeholder,
-                    key="account_connection_info"
-                )
+                1. **複数回のAI処理** 🤖
+                   - 要約生成（1回目）
+                   - まとめ生成（2回目）
+                   - 各処理で20～60秒程度
                 
-                # 登録情報の検証と保存
-                if api_key:
-                    # 長さを検証
-                    min_length = 20 if ai_provider == "openai" else 30
-                    if len(api_key) < min_length:
-                        st.error(f"❌ 接続情報が短すぎます。正しい{ai_name}のアカウント接続情報を入力してください。")
-                    else:
-                        # セッション内でのみ保存（ブラウザ内のみ、他者と共有されない）
-                        if ai_provider == "gemini":
-                            os.environ["GOOGLE_API_KEY"] = api_key
-                        else:
-                            os.environ["OPENAI_API_KEY"] = api_key
-                        masked_key = mask_api_key(api_key)
-                        st.success(f"✅ **{ai_name}アカウントの登録が完了しました！**")
-                        st.info(f"🔗 登録情報: {masked_key}\n\nこのアプリが{ai_name}アカウントに接続し、自動で要約を生成します。")
-                else:
-                    st.warning(f"⚠️ {ai_name}アカウントを登録してください。登録しないと自動要約機能が使えません。")
-                    api_key = ""  # 空文字列を設定
+                2. **ネットワーク通信** 🌐
+                   - GoogleサーバーとのAPI通信
+                   - インターネット速度に依存
+                
+                3. **大量テキスト処理** 📄
+                   - 複数ファイルの統合
+                   - 1万文字あたり30～60秒
+                
+                **💡 高速化のヒント:**
+                - ファイル数を減らす（1～3ファイル推奨）
+                - 各ファイルのサイズを小さくする
+                - 不要なページを削除してからアップロード
+                """)
         
         st.divider()
 
