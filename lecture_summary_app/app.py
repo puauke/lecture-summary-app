@@ -157,30 +157,89 @@ def main():
                 ai_provider_choice = st.selectbox(
                     "使用するAI",
                     ["gemini", "openai"],
-                    format_func=lambda x: "🔷 Google Gemini（無料・推奨）" if x == "gemini" else "🟢 OpenAI ChatGPT"
+                    format_func=lambda x: "🔷 Google Gemini（完全無料・推奨）" if x == "gemini" else "🟢 OpenAI ChatGPT（有料）"
                 )
                 
                 with st.expander("📝 APIキーの取得方法", expanded=True):
                     if ai_provider_choice == "gemini":
                         st.markdown("""
-                        **Google Gemini APIキーの取得手順（無料）:**
+                        ### 🔷 Google Gemini APIキーの取得手順（無料・推奨）
                         
-                        1. [Google AI Studio](https://ai.google.dev/) を開く
-                        2. Googleアカウントでログイン
-                        3. **"Get API Key"** → **"Create API Key"**
-                        4. キー（`AIza...`で始まる）をコピー
-                        5. 下の欄に貼り付け
+                        **所要時間:** 約3分  
+                        **費用:** 完全無料（月間1.5M tokens、1日1500リクエストまで）
+                        
+                        #### 📋 詳細手順：
+                        
+                        **ステップ 1:** 下のリンクをクリック  
+                        👉 [Google AI Studio](https://ai.google.dev/)
+                        
+                        **ステップ 2:** 画面右上の **「Get API Key」** ボタンをクリック
+                        - Googleアカウントでログインを求められたらログイン
+                        - まだGoogleアカウントがない場合は無料で作成できます
+                        
+                        **ステップ 3:** **「Create API Key」** ボタンをクリック
+                        - 新しいプロジェクトを作成するか、既存のプロジェクトを選択
+                        - 初めての場合は **「Create API key in new project」** を選択
+                        
+                        **ステップ 4:** APIキーが表示されます
+                        - `AIzaSy...` で始まる長い文字列（約39文字）
+                        - 右側の **📋 コピーアイコン** をクリックしてコピー
+                        
+                        **ステップ 5:** 下の入力欄に貼り付け
+                        - `Ctrl + V`（Windows）または `Cmd + V`（Mac）で貼り付け
+                        
+                        ✅ **完了！** これでこのアプリで使えます
+                        
+                        ⚠️ **注意事項:**
+                        - APIキーは他人と共有しないでください
+                        - このアプリはブラウザ内でのみキーを保存します（サーバーには送信されません）
+                        - 無料枠を超えた場合も自動的に課金されることはありません
                         """)
                     else:
                         st.markdown("""
-                        **OpenAI APIキーの取得手順:**
+                        ### 🟢 OpenAI APIキーの取得手順（有料）
                         
-                        1. [OpenAI Platform](https://platform.openai.com/) にアクセス
-                        2. アカウントを作成/ログイン
-                        3. **API Keys** → **Create new secret key**
-                        4. キー（`sk-...`で始まる）をコピー
-                        5. 下の欄に貼り付け
+                        **所要時間:** 約5分  
+                        **費用:** 従量課金制（最初に$5-$10のクレジット購入が必要）
+                        
+                        #### 📋 詳細手順：
+                        
+                        **ステップ 1:** 下のリンクをクリック  
+                        👉 [OpenAI Platform](https://platform.openai.com/)
+                        
+                        **ステップ 2:** アカウント作成/ログイン
+                        - **「Sign up」** をクリックしてアカウント作成
+                        - メールアドレスと電話番号による認証が必要
+                        
+                        **ステップ 3:** 支払い情報を登録
+                        - 左メニューの **「Billing」** をクリック
+                        - クレジットカード情報を登録
+                        - 最低$5のクレジット購入が必要
+                        
+                        **ステップ 4:** APIキーを作成
+                        - 左メニューの **「API Keys」** をクリック
+                        - **「+ Create new secret key」** ボタンをクリック
+                        - 任意の名前を入力（例：「AI資料まとめくん用」）
+                        - **「Create secret key」** をクリック
+                        
+                        **ステップ 5:** APIキーが表示されます
+                        - `sk-...` で始まる長い文字列（約50文字以上）
+                        - ⚠️ **この画面でしかコピーできません**
+                        - 右側の **📋 コピーアイコン** をクリックしてコピー
+                        
+                        **ステップ 6:** 下の入力欄に貼り付け
+                        - `Ctrl + V`（Windows）または `Cmd + V`（Mac）で貼り付け
+                        
+                        ✅ **完了！** これでこのアプリで使えます
+                        
+                        ⚠️ **注意事項:**
+                        - APIキーは一度しか表示されません（必ず保存してください）
+                        - APIキーは他人と共有しないでください
+                        - 使用量に応じて課金されます（目安：1000回の要約で約$5-$10）
                         """)
+                    
+                    st.divider()
+                    st.success("💡 **困ったら:** 上記の手順通りに進めば必ず取得できます。ゆっくり1ステップずつ進めてください。")
                 
                 user_api_key = st.text_input(
                     f"🔑 あなたの{ai_provider_choice.upper()} APIキー",
@@ -205,7 +264,7 @@ def main():
                         st.rerun()
             
             st.divider()
-            st.caption("💡 APIキーは無料で取得できます。他の人のキーは使えません。")
+            st.caption("💡 **Google Geminiなら完全無料で使えます！** OpenAIは有料オプションです。")
             st.stop()  # ログインしていない場合は処理を停止
         
         # ログイン済みの場合：ユーザー情報表示
