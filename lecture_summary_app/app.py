@@ -951,9 +951,12 @@ def main():
                         
                         st.session_state.data_loaded = True
                         st.session_state.is_processing = False
+                        
+                        # 最終的な処理時間を計算して表示（消さない）
+                        total_elapsed = int(time.time() - start_time)
                         progress_bar.progress(100)
-                        status_text.text("✅ 解析完了！")
-                        st.success("✅ 解析完了！各タブで結果を確認できます。")
+                        status_text.success(f"✅ 解析完了！(総処理時間: {total_elapsed}秒)")
+                        st.success(f"✅ 解析完了！各タブで結果を確認できます。\n\n⏱️ **処理時間: {total_elapsed}秒**")
                         
                         # メモリクリア（セキュリティ強化）
                         import gc
@@ -966,8 +969,14 @@ def main():
                     status_text.empty()
                 finally:
                     st.session_state.is_processing = False
-                    progress_bar.empty()
-                    status_text.empty()
+                    # 処理完了時はプログレスバーのみクリア（時間表示は残す）
+                    if st.session_state.data_loaded and not st.session_state.cancel_processing:
+                        progress_bar.empty()
+                        # status_text は残す（処理時間を表示したまま）
+                    else:
+                        # エラー時やキャンセル時はすべてクリア
+                        progress_bar.empty()
+                        status_text.empty()
     
     # 履歴表示（サイドバー）
     if st.session_state.history:
