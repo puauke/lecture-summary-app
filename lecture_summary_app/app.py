@@ -93,7 +93,18 @@ def export_to_markdown(summary, integration, sources):
     return content
 
 def main():
-    # Helper to clean session
+    # セッション状態の確実な初期化（最優先）
+    # ユーザー認証関連を最初に初期化
+    if "is_logged_in" not in st.session_state:
+        st.session_state.is_logged_in = False
+    if "user_email" not in st.session_state:
+        st.session_state.user_email = ""
+    if "user_api_key" not in st.session_state:
+        st.session_state.user_api_key = ""
+    if "ai_provider" not in st.session_state:
+        st.session_state.ai_provider = "gemini"
+    
+    # その他のセッション状態を初期化
     if "data_loaded" not in st.session_state:
         st.session_state.data_loaded = False
         st.session_state.text_data_list = []
@@ -107,22 +118,10 @@ def main():
         st.session_state.search_keyword = ""  # 検索キーワード
         st.session_state.manual_search_results = []  # 手動検索結果
         st.session_state.language = "ja"  # デフォルト言語：日本語
-        st.session_state.ai_provider = "gemini"  # デフォルトAIプロバイダー
-        st.session_state.user_email = ""  # ユーザーメール
-        st.session_state.user_api_key = ""  # ユーザーAPIキー
-        st.session_state.is_logged_in = False  # ログイン状態
     
-    # 個別の初期化（languageとai_providerは常に更新される可能性がある）
+    # 言語設定の保持
     if "language" not in st.session_state:
         st.session_state.language = "ja"
-    if "ai_provider" not in st.session_state:
-        st.session_state.ai_provider = "gemini"
-    if "user_email" not in st.session_state:
-        st.session_state.user_email = ""
-    if "user_api_key" not in st.session_state:
-        st.session_state.user_api_key = ""
-    if "is_logged_in" not in st.session_state:
-        st.session_state.is_logged_in = False
     
     # Save category to session
     if "current_category" not in st.session_state:
@@ -137,6 +136,9 @@ def main():
     # Sidebar: Settings & Inputs
     with st.sidebar:
         st.title("🧠 AI資料まとめくん")
+        
+        # セッション情報の確認（デバッグ用 - 本番環境では削除可能）
+        # st.caption(f"セッションID: {st.session_state.get('user_email', 'なし')[:10]}...")
         
         # 初回ログイン機能（共有版向け）
         if not st.session_state.is_logged_in:
@@ -254,18 +256,36 @@ def main():
                 submitted = st.form_submit_button("✅ 登録して始める", use_container_width=True, type="primary")
                 
                 if submitted:
+                    # 入力検証
                     if not user_email or not user_api_key:
                         st.error("❌ メールアドレスとAPIキーを両方入力してください。")
+                    elif not user_email.strip():
+                        st.error("❌ 有効なメールアドレスを入力してください。")
                     elif len(user_api_key.strip()) < 20:
                         st.error("❌ APIキーが短すぎます。正しいキーを入力してください。")
+                    elif ai_provider_choice == "gemini" and not user_api_key.strip().startswith("AIza"):
+                        st.warning("⚠️ Google GeminiのAPIキーは通常 'AIza' で始まります。正しいキーか確認してください。")
+                    elif ai_provider_choice == "openai" and not user_api_key.strip().startswith("sk-"):
+                        st.warning("⚠️ OpenAIのAPIキーは 'sk-' で始まります。正しいキーか確認してください。")
                     else:
                         # APIキーの前後の空白を削除
                         user_api_key = user_api_key.strip()
-                        st.session_state.user_email = user_email.strip()
+                        user_email = user_email.strip()
+                        
+                        # セッション状態に確実に保存
+                        st.session_state.user_email = user_email
                         st.session_state.user_api_key = user_api_key
                         st.session_state.ai_provider = ai_provider_choice
                         st.session_state.is_logged_in = True
-                        st.success(f"✅ ようこそ {user_email} さん！")
+                        
+                        # 環境変数にも設定
+                        if ai_provider_choice == "gemini":
+                            os.environ["GOOGLE_API_KEY"] = user_api_key
+                        else:
+                            os.environ["OPENAI_API_KEY"] = user_api_key
+                        
+                        st.success(f"✅ ようこそ **{user_email}** さん！")
+                        st.balloons()
                         st.rerun()
             
             st.divider()
@@ -273,13 +293,22 @@ def main():
             st.stop()  # ログインしていない場合は処理を停止
         
         # ログイン済みの場合：ユーザー情報表示
-        st.success(f"👤 ログイン中: {st.session_state.user_email}")
+        st.success(f"👤 ログイン中: **{st.session_state.user_email}**")
+        st.caption(f"🔷 AIプロバイダー: {st.session_state.ai_provider.upper()}")
+        
         col1, col2 = st.columns([3, 1])
         with col2:
             if st.button("🚪", help="ログアウト"):
+                # ログアウト時は認証情報のみクリア（他のデータは保持）
                 st.session_state.is_logged_in = False
                 st.session_state.user_email = ""
                 st.session_state.user_api_key = ""
+                # 環境変数もクリア
+                if "GOOGLE_API_KEY" in os.environ:
+                    del os.environ["GOOGLE_API_KEY"]
+                if "OPENAI_API_KEY" in os.environ:
+                    del os.environ["OPENAI_API_KEY"]
+                st.info("✅ ログアウトしました。再度ログインしてください。")
                 st.rerun()
         
         st.divider()
