@@ -102,15 +102,37 @@ def load_pdf(file_path):
 def load_text(file_path):
     """
     Reads text from a text file.
+    Automatically detects encoding (UTF-8, Shift-JIS, etc.)
     Handles large files by limiting size.
     """
     try:
         file_size = os.path.getsize(file_path)
+        
+        # Try UTF-8 first
+        def try_read_with_encoding(encoding):
+            try:
+                if file_size > MAX_FILE_SIZE:
+                    with open(file_path, "r", encoding=encoding) as f:
+                        content = f.read(MAX_FILE_SIZE)
+                    return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB)。最初の{MAX_FILE_SIZE / 1024 / 1024:.0f}MBのみを処理します。\n\n{content}"
+                else:
+                    with open(file_path, "r", encoding=encoding) as f:
+                        return f.read()
+            except (UnicodeDecodeError, LookupError):
+                return None
+        
+        # Try encodings in order
+        encodings = ['utf-8', 'shift-jis', 'cp932', 'euc-jp', 'iso-8859-1', 'latin-1']
+        for enc in encodings:
+            result = try_read_with_encoding(enc)
+            if result is not None:
+                return result
+        
+        # If all fail, use UTF-8 with error handling
         if file_size > MAX_FILE_SIZE:
-            # Read only first 5MB of text
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read(MAX_FILE_SIZE)
-            return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB)。最初の5MBのみを処理します。\n\n{content}"
+            return f"⚠️ ファイルサイズが大きすぎます ({file_size / 1024 / 1024:.1f}MB)。最初の{MAX_FILE_SIZE / 1024 / 1024:.0f}MBのみを処理します。\n\n{content}"
         else:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()

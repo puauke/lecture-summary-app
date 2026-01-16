@@ -105,6 +105,7 @@ def main():
         st.session_state.history = []  # 履歴機能
         st.session_state.search_keyword = ""  # 検索キーワード
         st.session_state.manual_search_results = []  # 手動検索結果
+        st.session_state.language = "ja"  # デフォルト言語：日本語
     
     # Save category to session
     if "current_category" not in st.session_state:
@@ -114,6 +115,47 @@ def main():
     with st.sidebar:
         st.title("🧠 AI資料まとめくん")
         
+        # 言語選択
+        language = st.selectbox(
+            "🌍 Language / 言語",
+            ["ja", "en"],
+            format_func=lambda x: "🇯🇵 日本語" if x == "ja" else "🇬🇧 English",
+            key="language_selector"
+        )
+        st.session_state.language = language
+        
+        # 言語別テキスト
+        texts = {
+            "ja": {
+                "api_info_local": "✅ APIキー設定済み（環境変数から読み込み）",
+                "api_info_shared": "ℹ️ 共有環境で動作中：各自のGoogle Gemini APIキーを入力してください（無料で取得可能）",
+                "api_key_label": "🔑 Google Gemini API Key",
+                "api_key_help": "Google AI Studio (https://ai.google.dev/) で無料取得できます",
+                "api_key_placeholder": "AIza... で始まるキーを入力",
+                "api_key_link": "[📖 APIキーの取得方法](https://ai.google.dev/) - Google AI Studioで無料登録",
+                "api_short_warning": "⚠️ APIキーが短すぎる可能性があります",
+                "api_success": "✅ APIキー設定完了",
+                "api_warning": "⚠️ APIキーを入力してください。入力されていない場合、アプリは動作しません。",
+                "local_mode": "ℹ️ ローカル環境で動作中（.envから自動読み込み）"
+            },
+            "en": {
+                "api_info_local": "✅ API Key configured (loaded from environment variables)",
+                "api_info_shared": "ℹ️ Shared environment: Please enter your own Google Gemini API Key (free to obtain)",
+                "api_key_label": "🔑 Google Gemini API Key",
+                "api_key_help": "Get it for free at Google AI Studio (https://ai.google.dev/)",
+                "api_key_placeholder": "Enter key starting with AIza...",
+                "api_key_link": "[📖 How to get API Key](https://ai.google.dev/) - Free registration at Google AI Studio",
+                "api_short_warning": "⚠️ API key may be too short",
+                "api_success": "✅ API Key configured successfully",
+                "api_warning": "⚠️ Please enter your API Key. The app will not work without it.",
+                "local_mode": "ℹ️ Running in local environment (auto-loaded from .env)"
+            }
+        }
+        
+        t = texts[language]
+        
+        st.divider()
+        
         # API Key (ローカル環境では.envから自動読み込み、共有環境では手動入力)
         env_api_key = os.getenv("GOOGLE_API_KEY", "")
         
@@ -121,34 +163,34 @@ def main():
             # ローカル環境（.envからAPIキーが読み込まれている場合）
             api_key = env_api_key
             masked_key = mask_api_key(api_key)
-            st.success(f"✅ APIキー設定済み（環境変数から読み込み）: {masked_key}")
-            st.caption("ℹ️ ローカル環境で動作中（.envから自動読み込み）")
+            st.success(f"{t['api_info_local']}: {masked_key}")
+            st.caption(t["local_mode"])
         else:
             # 共有環境（Streamlit Cloudなど、各ユーザーが入力）
-            st.info("ℹ️ 共有環境で動作中：各自のGoogle Gemini APIキーを入力してください（無料で取得可能）")
+            st.info(t["api_info_shared"])
             api_key = st.text_input(
-                "🔑 Google Gemini API Key", 
+                t["api_key_label"], 
                 value="", 
                 type="password", 
-                help="Google AI Studio (https://ai.google.dev/) で無料取得できます",
-                placeholder="AIza... で始まるキーを入力"
+                help=t["api_key_help"],
+                placeholder=t["api_key_placeholder"]
             )
             
             # API キー取得リンク
-            st.caption("[📖 APIキーの取得方法](https://ai.google.dev/) - Google AI Studioで無料登録")
+            st.caption(t["api_key_link"])
             
             # API キーのマスク表示（セキュリティ強化）
             if api_key:
                 # API キーの長さを検証（通常150文字以上）
                 if len(api_key) < 20:
-                    st.warning("⚠️ APIキーが短すぎる可能性があります")
+                    st.warning(t["api_short_warning"])
                 else:
                     # セッション内でのみ保存（他のユーザーと共有されない）
                     os.environ["GOOGLE_API_KEY"] = api_key
                     masked_key = mask_api_key(api_key)
-                    st.success(f"✅ APIキー設定完了: {masked_key}")
+                    st.success(f"{t['api_success']}: {masked_key}")
             else:
-                st.warning("⚠️ APIキーを入力してください。入力されていない場合、アプリは動作しません。")
+                st.warning(t["api_warning"])
                 api_key = ""  # 空文字列を設定
         
         st.divider()
@@ -316,7 +358,7 @@ def main():
                         status_text.text("🤖 AI要約生成中... (最大3分)")
                         progress_bar.progress(50)
                         try:
-                            summary_result = summarizer.generate_summary(text_data, api_key)
+                            summary_result = summarizer.generate_summary(text_data, api_key, output_language=st.session_state.language)
                             st.session_state.summary = summary_result.get("summary", "")
                             st.session_state.integration = summary_result.get("integration", "")
                             progress_bar.progress(70)

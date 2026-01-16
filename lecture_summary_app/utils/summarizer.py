@@ -1,13 +1,20 @@
-def generate_summary(text_data_list, api_key):
+def generate_summary(text_data_list, api_key, output_language="ja"):
     """
     Generates a summary from a list of text data.
     text_data_list: List of dicts with 'content' and 'source'.
+    output_language: 'ja' for Japanese, 'en' for English, etc.
     """
     # Lazy imports to prevent startup errors
     from langchain_google_genai import ChatGoogleGenerativeAI
     
     if not text_data_list:
         return {"summary": "No content to summarize.", "integration": "No content available."}
+
+    # 言語設定
+    language_instruction = {
+        "ja": "すべての出力は日本語で記述してください。",
+        "en": "Please write all output in English."
+    }.get(output_language, "すべての出力は日本語で記述してください。")
 
     # Combine all text content
     full_text = ""
@@ -19,6 +26,8 @@ def generate_summary(text_data_list, api_key):
 
     # 1. Generate Summary
     summary_prompt = f"""
+    {language_instruction}
+    
     あなたは「講義資料の統合マスター」です。
     提供された複数の資料（レジュメ、Web記事など）の内容を完全に統合し、
     「重複を整理」して「体系的」にまとめた、レポート作成に最適な学習ノートを作成してください。
@@ -102,6 +111,8 @@ def generate_summary(text_data_list, api_key):
     
     # 2. Generate Integration Summary (まとめ)
     integration_prompt = f"""
+    {language_instruction}
+    
     あなたは優秀なまとめの専門家です。
     以下の複数の資料から、最も重要なポイントと全体の流れをまとめてください。
     
