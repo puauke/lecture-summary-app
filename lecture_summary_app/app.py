@@ -360,6 +360,12 @@ def main():
             api_key = st.session_state.user_api_key
             ai_name = "Google Gemini" if st.session_state.ai_provider == "gemini" else "OpenAI ChatGPT"
             
+            # 環境変数に確実に設定（AI処理で使用）
+            if st.session_state.ai_provider == "gemini":
+                os.environ["GOOGLE_API_KEY"] = api_key
+            else:
+                os.environ["OPENAI_API_KEY"] = api_key
+            
             # APIキーの確認
             masked_key = mask_api_key(api_key)
             st.success(f"✅ **{ai_name}アカウント登録済み**")
@@ -559,9 +565,23 @@ def main():
             st.session_state.cancel_processing = False
             st.session_state.is_processing = True
             
+            # APIキーの確認と環境変数への設定
+            if ai_provider != "extract_only":
+                if not api_key or len(api_key.strip()) < 20:
+                    ai_name_btn = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
+                    st.error(f"❌ {ai_name_btn}アカウントを登録してください！\n\n上のセクションで、{ai_name_btn}アカウントの接続情報が正しく入力されているか確認してください。")
+                    st.session_state.is_processing = False
+                else:
+                    # 環境変数に確実に設定
+                    if ai_provider == "gemini":
+                        os.environ["GOOGLE_API_KEY"] = api_key.strip()
+                    else:
+                        os.environ["OPENAI_API_KEY"] = api_key.strip()
+            
             if ai_provider != "extract_only" and not api_key:
                 ai_name_btn = "Google Gemini" if ai_provider == "gemini" else "ChatGPT"
-                st.error(f"❌ {ai_name_btn}アカウントを登録してください！\n\n上の「アカウント接続情報」欄に、{ai_name_btn}アカウントの接続情報を入力してください。")
+                # エラーメッセージは上で表示済み
+                pass
             else:
                 # 遅延インポート（使用時のみ） - 全モジュール一括インポート
                 from utils import file_loader, web_loader, summarizer, qa_agent, recommender
