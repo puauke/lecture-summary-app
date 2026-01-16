@@ -58,7 +58,8 @@ Thumbs.db
 # Data (大きいファイル)
 data/
 *.pdf
-*.txt
+# *.txt は除外しない（ユーザーがテキストファイルをアップロードできるようにする）
+# data/*.txt のみ除外する場合は data/ で十分
 
 # Caches
 .pytest_cache/
