@@ -20,9 +20,10 @@ def generate_summary(text_data_list, api_key, output_language="ja", ai_provider=
     else:
         from langchain_google_genai import ChatGoogleGenerativeAI
         # Geminiの最新モデル名（temperature設定で高速化）
-        # 環境変数から自動的にAPIキーを読み取る
+        # APIキーを明示的に渡す
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash", 
+            model="gemini-2.0-flash-exp",  # 最新の高速モデル
+            google_api_key=api_key,  # APIキーを明示的に渡す
             temperature=0.3,  # 低温度で高速化と一貫性向上
             max_tokens=4096   # トークン数制限で高速化
         )

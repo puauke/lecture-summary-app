@@ -18,8 +18,12 @@ def recommend_sources(summary_text, api_key, skip_if_not_found=True, ai_provider
         llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=api_key, temperature=0.7)
     else:
         from langchain_google_genai import ChatGoogleGenerativeAI
-        # 環境変数から自動的にAPIキーを読み取る
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+        # APIキーを明示的に渡す
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-exp",
+            google_api_key=api_key,
+            temperature=0.3
+        )
     
     # 1. Extract Keywords
     prompt = f"""

@@ -47,9 +47,10 @@ def get_answer(query, context_text, api_key, ai_provider="gemini"):
         llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=api_key, temperature=0.1)
     else:
         from langchain_google_genai import ChatGoogleGenerativeAI
-        # 環境変数から自動的にAPIキーを読み取る
+        # APIキーを明示的に渡す
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash", 
+            model="gemini-2.0-flash-exp",
+            google_api_key=api_key,
             temperature=0.1
         )
     
